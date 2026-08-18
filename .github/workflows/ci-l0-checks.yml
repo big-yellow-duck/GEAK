@@ -200,8 +200,9 @@ jobs:
       # Pure node (fs/path only) — no npm install needed.
       - name: expert_skills OFF-identical regression
         run: node e2e_workflow/scripts/test_expert_skills_off_identical.js
-      # Proves drop_gate=off is inert, dryrun records but drops nothing, and a
-      # candidate at or above HEAD_PROTECT_PCT is never dropped in any mode.
+      # Proves drop_gate ships as 'on', that 'off' is inert, and that a drop is refused
+      # unless it resolves to exactly one candidate of a KNOWN size below HEAD_PROTECT_PCT
+      # from a list that is not taking out more than DROP_MAX_FRACTION of the queue.
       - name: drop_gate relevance-gate regression
         run: node e2e_workflow/scripts/test_drop_gate.js
 
