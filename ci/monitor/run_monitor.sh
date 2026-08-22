@@ -19,8 +19,7 @@
 #              and keeps GPU or CPU busy, so it is NEVER killed. If GPU utilisation
 #              cannot be measured (no rocm-smi/amd-smi) it CANNOT prove "idle" and
 #              so degrades to warn-only — it will never kill on a guess.
-#   * claude — LLM arbiter. Every INTERVAL feeds the log tail + factual context to
-#              a tool-less `claude -p` session that votes CONTINUE/KILL.
+#   * claude/codex — optional LLM arbiter using the selected authenticated CLI.
 #
 # SAFETY: runs ON THE HOST only; never enters the container, never touches the
 # GPU (read-only rocm-smi/docker-stats sampling). Bias is strongly toward
@@ -47,7 +46,7 @@ RECHECK_S="$GEAK_MONITOR_RECHECK_S"        # faster re-poll while confirming a K
 CONFIRM="$GEAK_MONITOR_CONFIRM"            # consecutive KILL votes required to act
 MODEL="$GEAK_MONITOR_MODEL"
 TAIL_LINES="$GEAK_MONITOR_TAIL_LINES"
-CALL_CAP="$GEAK_MONITOR_CALL_TIMEOUT_S"    # cap a single claude call
+CALL_CAP="$GEAK_MONITOR_CALL_TIMEOUT_S"    # cap a single agent call
 STARTUP_GRACE_S="$GEAK_MONITOR_STARTUP_GRACE_S"
 STALL_KILL_S="${GEAK_STALL_KILL_S:-2700}"
 STALL_GPU_PCT="${GEAK_STALL_GPU_UTIL_PCT:-5}"
@@ -125,8 +124,16 @@ if [ "$MODE" = claude ]; then
     exit 0
   fi
   [ -f "$PROMPT_FILE" ] || { log "missing prompt $PROMPT_FILE; monitor disabled"; exit 0; }
+elif [ "$MODE" = codex ]; then
+  CODEX_BIN="$(command -v codex 2>/dev/null || true)"
+  if [ -z "$CODEX_BIN" ]; then
+    log "MODE=codex but no 'codex' on host; monitor disabled"
+    exit 0
+  fi
+  [ -f "$PROMPT_FILE" ] || { log "missing prompt $PROMPT_FILE; monitor disabled"; exit 0; }
+  case "$MODEL" in claude-*) MODEL="${GEAK_CODEX_MODEL:-gpt-5.6-luna}";; esac
 elif [ "$MODE" != stall ]; then
-  log "unknown GEAK_MONITOR_MODE='$MODE' (want stall|claude); monitor disabled"
+  log "unknown GEAK_MONITOR_MODE='$MODE' (want stall|claude|codex); monitor disabled"
   exit 0
 fi
 
@@ -148,6 +155,27 @@ $tail_txt
 === END LOG ==="
   resp="$(timeout "$CALL_CAP" "$CLAUDE_BIN" -p "$prompt" --model "$MODEL" </dev/null 2>>"$MON_LOG")" || {
     verdict=""; reason="claude call failed/timed out"; return 0; }
+  verdict="$(printf '%s' "$resp" | grep -oiE 'VERDICT:[[:space:]]*(CONTINUE|KILL)' | tail -n1 | grep -oiE '(CONTINUE|KILL)' | tr '[:lower:]' '[:upper:]')"
+  reason="$(printf '%s' "$resp" | grep -iE 'REASON:' | tail -n1 | sed -E 's/.*REASON:[[:space:]]*//')"
+}
+
+decide_codex() {  # args: delta age_s
+  local delta="$1" age_s="$2" now_utc tail_txt resp prompt
+  now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  tail_txt="$(tail -n "$TAIL_LINES" "$LOG" 2>/dev/null || echo '(no log yet)')"
+  prompt="$(cat "$PROMPT_FILE")
+
+=== CONTEXT (facts computed on the host) ===
+now_utc: $now_utc
+check_interval_s: $INTERVAL
+log_bytes_added_since_last_check: $delta
+log_last_modified_age_s: $age_s
+current_kill_streak: $kill_streak (need $CONFIRM consecutive KILL votes to act)
+=== RUN LOG (last $TAIL_LINES lines of $LOG) ===
+$tail_txt
+=== END LOG ==="
+  resp="$(printf '%s' "$prompt" | timeout "$CALL_CAP" "$CODEX_BIN" exec --ephemeral +      --skip-git-repo-check --sandbox read-only --model "$MODEL" +      -c 'model_reasoning_effort="low"' - 2>>"$MON_LOG")" || {
+    verdict=""; reason="codex call failed/timed out"; return 0; }
   verdict="$(printf '%s' "$resp" | grep -oiE 'VERDICT:[[:space:]]*(CONTINUE|KILL)' | tail -n1 | grep -oiE '(CONTINUE|KILL)' | tr '[:lower:]' '[:upper:]')"
   reason="$(printf '%s' "$resp" | grep -iE 'REASON:' | tail -n1 | sed -E 's/.*REASON:[[:space:]]*//')"
 }
@@ -226,7 +254,13 @@ while true; do
   last_size="$size"
 
   verdict=""; reason=""
-  if [ "$MODE" = claude ]; then decide_claude "$delta" "$age_s"; else decide_stall "$delta" "$age_s"; fi
+  if [ "$MODE" = claude ]; then
+    decide_claude "$delta" "$age_s"
+  elif [ "$MODE" = codex ]; then
+    decide_codex "$delta" "$age_s"
+  else
+    decide_stall "$delta" "$age_s"
+  fi
   if [ -z "$verdict" ]; then
     log "no verdict (${reason:-unknown}); retry next interval"
     sleep "$INTERVAL"; continue

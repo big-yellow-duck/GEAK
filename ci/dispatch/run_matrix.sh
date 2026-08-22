@@ -16,7 +16,7 @@
 #   --budget SECONDS   per-model GEAK wall-clock budget (default: PERFSKILLS_E2E_TIMEOUT_S from ci/config.sh)
 #   --poll SECONDS     poll interval while waiting (default: GEAK_MATRIX_POLL_S from ci/config.sh)
 #   --probe            harness check: real SPUR alloc + docker + GPU + weights
-#                      (+Claude), but STOP at the GEAK e2e doorstep. Judges on a
+#                      (+selected agent), but STOP at the GEAK e2e doorstep. Judges on a
 #                      probe_ok marker (no e2e/result.json). Implied by 'probe'.
 #   --print            show the sbatch commands and exit (no submission/wait)
 #                      — use this to validate wiring without touching the cluster.

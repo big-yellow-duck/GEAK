@@ -153,6 +153,7 @@ class EnvKnobTests(BootstrapTestCase):
         self.assertEqual(mod.CLAUDE_VERSION, "latest")
         self.assertEqual(mod.CLAUDE_BIN_DIR,
                          os.path.join(self.home, ".local", "bin"))
+        self.assertEqual(mod.AGENT_BACKEND, "codex")
 
     def test_every_knob_overrides_its_default(self):
         work = os.path.join(self.root, "work")
@@ -556,6 +557,38 @@ class EnsureClaudeCodeTests(BootstrapTestCase):
         self.assertIn("CLAUDE_VERSION", err.getvalue())
 
 
+class EnsureCodexTests(BootstrapTestCase):
+
+    def test_existing_codex_and_node_are_reused(self):
+        self.stub_which({"codex", "node"})
+        self.stub_run(lambda cmd: (0, "codex-cli 1.2.3\n"))
+        with _captured() as (out, err):
+            bootstrap.ensure_codex_cli()
+        self.assertEqual(self.calls[0][0], ["codex", "--version"])
+        self.assertIn("Codex CLI present", out.getvalue())
+        self.assertEqual(err.getvalue(), "")
+
+    def test_missing_codex_uses_npm_and_warns_when_node_missing(self):
+        self.stub_which({"npm"})
+        self.stub_run(lambda cmd: (1, "") if cmd[:2] == ["codex", "--version"] else (0, ""))
+        with _captured() as (out, err):
+            bootstrap.ensure_codex_cli()
+        self.assertIn(["npm", "install", "-g", "@openai/codex"],
+                      [call[0] for call in self.calls])
+        self.assertIn("installing Codex CLI via npm", out.getvalue())
+        self.assertIn("Node.js 18+ is required", err.getvalue())
+
+    def test_agent_harness_dispatches_without_requiring_both(self):
+        seen = []
+        with mock.patch.object(bootstrap, "ensure_codex_cli",
+                               lambda: seen.append("codex")), \
+                mock.patch.object(bootstrap, "ensure_claude_code",
+                                  lambda: seen.append("claude")), \
+                mock.patch.object(bootstrap, "AGENT_BACKEND", "codex"):
+            bootstrap.ensure_agent_harness()
+        self.assertEqual(seen, ["codex"])
+
+
 # ── step 3: environment detection ───────────────────────────────────────────
 
 class CheckEnvironmentTests(BootstrapTestCase):
@@ -612,6 +645,7 @@ class PrintNextStepsTests(BootstrapTestCase):
             mock.patch.object(bootstrap, "GEAK_HOME", geak_home),
             mock.patch.object(bootstrap, "C_CMD", ""),
             mock.patch.object(bootstrap, "C_OFF", ""),
+            mock.patch.object(bootstrap, "AGENT_BACKEND", "claude"),
             mock.patch.dict(os.environ,
                             {"PATH": os.pathsep.join(path_entries)}, clear=False),
         ]
@@ -657,10 +691,23 @@ class PrintNextStepsTests(BootstrapTestCase):
                 mock.patch.object(bootstrap, "GEAK_HOME", self.root), \
                 mock.patch.object(bootstrap, "C_CMD", "\033[1;32m"), \
                 mock.patch.object(bootstrap, "C_OFF", "\033[0m"), \
+                mock.patch.object(bootstrap, "AGENT_BACKEND", "claude"), \
                 _captured() as (out, _):
             bootstrap.print_next_steps()
         self.assertIn("\033[1;32mexport ANTHROPIC_API_KEY=sk-ant-...\033[0m",
                       out.getvalue())
+
+    def test_codex_next_steps_use_chatgpt_login_and_stable_interface(self):
+        with mock.patch.object(bootstrap, "AGENT_BACKEND", "codex"), \
+                mock.patch.object(bootstrap, "GEAK_HOME", "/work/GEAK"), \
+                mock.patch.object(bootstrap, "C_CMD", ""), \
+                mock.patch.object(bootstrap, "C_OFF", ""), \
+                _captured() as (out, _):
+            bootstrap.print_next_steps()
+        text = out.getvalue()
+        self.assertIn("codex login", text)
+        self.assertIn("GEAK_AGENT_BACKEND=codex python interface/run_e2e.py", text)
+        self.assertNotIn("ANTHROPIC_API_KEY", text)
 
 
 # ── orchestration ───────────────────────────────────────────────────────────
@@ -669,7 +716,7 @@ class MainTests(BootstrapTestCase):
 
     def _spy_steps(self):
         seen = []
-        for name in ("clone_repo", "ensure_claude_code", "check_environment",
+        for name in ("clone_repo", "ensure_agent_harness", "check_environment",
                      "print_next_steps"):
             p = mock.patch.object(bootstrap, name,
                                   lambda n=name: seen.append(n))
@@ -685,7 +732,7 @@ class MainTests(BootstrapTestCase):
                 mock.patch.object(bootstrap, "GEAK_HOME", "/tmp/does/not/matter"), \
                 _captured() as (out, _):
             self.assertIsNone(bootstrap.main())
-        self.assertEqual(seen, ["clone_repo", "ensure_claude_code",
+        self.assertEqual(seen, ["clone_repo", "ensure_agent_harness",
                                 "check_environment", "print_next_steps"])
         self.assertIn("GEAK_HOME=/tmp/does/not/matter", out.getvalue())
 
@@ -715,7 +762,8 @@ class MainTests(BootstrapTestCase):
                 _captured() as (out, err):
             self.assertIsNone(bootstrap.main())
         self.assertIn("git not found", err.getvalue())
-        self.assertIn("need curl (native installer) or npm", err.getvalue())
+        self.assertIn("Codex CLI not found and npm is unavailable", err.getvalue())
+        self.assertIn("Node.js 18+ is required", err.getvalue())
         self.assertIn("setup complete", out.getvalue())
         # Nothing was cloned or installed into the temp tree.
         self.assertEqual(os.listdir(self.root), ["home"])

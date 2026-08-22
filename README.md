@@ -15,8 +15,8 @@ sglang, and GEAK runs the full optimization loop: it finds the bottlenecks, gene
 across paths such as Triton, FlyDSL, TileLang, and HIP, and validates the speedup on the real system. What
 normally takes weeks of expert kernel engineering becomes an automated, repeatable, and self-improving process.
 
-GEAK targets AMD Instinct MI GPUs (CDNA, e.g. gfx942 / gfx950; the on-box card is auto-detected), driven by
-Claude Code and orchestrated by deterministic JS Workflows. It ships two workflows, each for a different scenario:
+GEAK targets AMD Instinct MI GPUs (CDNA, e.g. gfx942 / gfx950; the on-box card is auto-detected), driven by either
+**Codex CLI** (default) or Claude Code and orchestrated by deterministic JS Workflows. It ships two workflows:
 
 | Workflow | Scope | What it optimizes |
 | --- | --- | --- |
@@ -52,7 +52,8 @@ optimize a single kernel.
 ### 2. Set up
 
 Installing GEAK does three things: installs the `geak` Python package + deps, clones the GEAK repo, and installs
-the Claude Code CLI. By default the repo lands in `./GEAK` under the directory you run the command from (override
+the selected agent CLI. Codex is the default; set `GEAK_AGENT_BACKEND=claude` before installation for the legacy
+Claude harness. By default the repo lands in `./GEAK` under the directory you run the command from (override
 the location with `GEAK_HOME`). Pick either method — both end up the same:
 
 **A. One-liner** — run it in the directory where you want GEAK to live:
@@ -69,39 +70,38 @@ cd GEAK
 pip install .
 ```
 
-### 3. Launch Claude Code in auto mode
+### 3. Authenticate Codex and run GEAK
 
-**Set up PATH and API access**
-
-You'll need to add `~/.local/bin` to your PATH and configure API access yourself — follow the installer's printed next-steps:
+Codex inherits its normal authenticated CLI session. A ChatGPT subscription works; no API key is required:
 
 ```bash
-# Option 1: Anthropic API directly
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Option 2: Standard gateway (x-api-key / bearer)
-export ANTHROPIC_BASE_URL=https://your-gateway
-export ANTHROPIC_AUTH_TOKEN=your-token
+codex login
+codex login status
 ```
 
-> If your gateway authenticates with a **custom header** instead of `x-api-key` / a bearer token
-> (e.g. `Ocp-Apim-Subscription-Key`), set it via `ANTHROPIC_CUSTOM_HEADERS`:
-> ```bash
-> export ANTHROPIC_BASE_URL=https://your-gateway
-> export ANTHROPIC_CUSTOM_HEADERS="Your-Header-Name: <your-key>"
-> ```
-
-**Launch Claude Code**
-
-The workflows spawn many sub-agents and run profiling / benchmark / build commands on the box, so run
-Claude Code with permissions auto-approved (≥ 2.1.177 for the dynamic Workflow feature):
+Run an end-to-end handoff through the stable interface:
 
 ```bash
-IS_SANDBOX=1 claude --dangerously-skip-permissions
+GEAK_AGENT_BACKEND=codex \
+  python interface/run_e2e.py handoff.json result.json
 ```
 
-Then just describe what you want in natural language (examples below). Claude Code resolves the paths and
-invokes the `Workflow` tool for you.
+The portable compatibility runtime maps each workflow agent to `codex exec`, preserves nested workflows and
+parallelism, and uses full host permissions because GPU builds and benchmarks require them. It uses strict output
+schemas where representable and JSON-only prompting for the workflows' arbitrary-key map schemas. Useful knobs
+are `GEAK_CODEX_MODEL`, `GEAK_CODEX_REASONING_EFFORT`, and `GEAK_CODEX_CONCURRENCY`.
+
+GPU-free compatibility smoke (three small model calls):
+
+```bash
+printf '%s\n' "{\"child_script\":\"$PWD/interface/fixtures/codex_smoke_child.js\"}" |
+  GEAK_CODEX_MODEL=gpt-5.6-luna GEAK_CODEX_REASONING_EFFORT=low \
+  node interface/codex_workflow_runner.mjs \
+    --script interface/fixtures/codex_smoke_parent.js --args-file /dev/stdin
+```
+
+To keep using Claude Code, set `GEAK_AGENT_BACKEND=claude`; the existing Anthropic API, gateway, and interactive
+login paths remain supported.
 
 ---
 
@@ -194,7 +194,7 @@ How the workflows in this repo relate to the GEAK_v3 baseline:
 |                        | GEAK v3 (baseline)                        | kernel_workflow                                                  | e2e_workflow                                                       |
 | ---------------------- | ----------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
 | **Target**             | Single kernel                             | Single kernel                                                   | **Whole-model sglang/vLLM serving throughput**                    |
-| **Agent backend**      | miniswe                                   | Claude                                                          | Claude                                                            |
+| **Agent backend**      | miniswe                                   | Codex or Claude                                                  | Codex or Claude                                                    |
 | **Architecture**       | Orchestrator + parallel workers           | Hierarchical: Director → TechLead → Engineers → Merge           | e2e Director → System Architect → Profiler / Config Tuner / Kernel Extractor / e2e Integrator (wraps the kernel layer) |
 | **Iteration**          | Multi-round                               | Multi-round, budget-controlled                                  | Multi-round, Amdahl-triaged, budget-controlled                    |
 | **Orchestration**      | Python                                    | **Deterministic JS** — loop/parallelism/verification in code   | **Deterministic JS**                                              |

@@ -2,8 +2,8 @@
 
 `interface/` is the **only** surface an external orchestrator (e.g. Hyperloom)
 touches. Everything volatile about the e2e workflow (the `e2e_workflow.js` arg
-names, the Claude Code `Workflow` invocation, the `--effort ultracode`
-requirement, the SDK-vs-CLI choice) is hidden behind one command and two JSON
+names, the Codex compatibility runtime or Claude Workflow invocation, and the
+harness-specific model settings) is hidden behind one command and two JSON
 files. The result schema is versioned so callers can distinguish contract
 changes while the workflow evolves internally.
 
@@ -22,6 +22,17 @@ python interface/run_e2e.py <handoff.json> <result.json> [--dry-run]
 Discovery: the installer should export `GEAK_E2E_RUNNER` pointing at this
 file (`$GEAK_ROOT/interface/run_e2e.py`) so the caller has a single
 hard-coded handle.
+
+## Agent backend
+
+`GEAK_AGENT_BACKEND=auto|codex|claude` selects the harness. `auto` prefers Codex
+when both Codex CLI and Node.js are available, and otherwise uses the legacy
+Claude path. Pin the value in CI for reproducibility.
+
+The Codex backend inherits the session created by `codex login`; GEAK does not
+copy credentials and does not use `ANTHROPIC_API_KEY`. Its main controls are
+`GEAK_CODEX_MODEL`, `GEAK_CODEX_REASONING_EFFORT`, `GEAK_CODEX_CONCURRENCY`,
+`GEAK_CODEX_BIN`, and `GEAK_CODEX_NODE_BIN`.
 
 The fast-path artifacts live under `<exp_root>/geak_e2e_moe_int4/`
 (`baseline/`, `validation/final/`, `final/` bundle, `director_e2e_validation.json`).

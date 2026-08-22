@@ -17,7 +17,7 @@ launched by `ci/dispatch/run_matrix.sh` → `ci/dispatch/slurm_job.sh`). A run:
    the driver is already wedged, then a short throwaway container probes the GPU
    (`rocminfo` + torch matmul) and fails fast if it's dead — before committing,
 3. spins up the ROCm/vllm container with GPU passthrough (in the background),
-4. installs Claude Code + the Python `claude_agent_sdk` inside it,
+4. installs/probes the selected Codex or Claude harness inside it,
 5. runs the GEAK e2e workflow for one model into a timestamped folder,
 6. (ON by default in stall mode) a **host-side liveness monitor** watches the run and
    kills a wedged/stalled run instead of letting it hang to the wall-clock cap,
@@ -80,7 +80,7 @@ ci/
 
 | file | role |
 |------|------|
-| `run_local.sh` | per-node launcher: GPU preflight, background docker GPU run + monitor, `--dry-run` host-only wiring check, or `--probe` (real docker/GPU/weights + Claude, stop before the e2e workflow). Invoked by `dispatch/slurm_job.sh` on the compute node (or directly for local dev). |
+| `run_local.sh` | per-node launcher: GPU preflight, background docker GPU run + monitor, `--dry-run` host-only wiring check, or `--probe` (real docker/GPU/weights + selected agent, stop before e2e). |
 | `run_model.sh` | Step E+F: run ONE model into a timestamped dir, then deterministically judge (status + measured baseline). |
 | `run_geak_e2e.sh` | mirror Hyperloom's `run_e2e.py` launch; patches `exp_root`/`model_path`/`launch_recipe`/`inferencex_path` in the handoff. |
 
@@ -90,16 +90,18 @@ ci/
 |------|------|
 | `gpu_dstate_check.sh` | host-side GPU-wedge pre-check: scans `/proc` (touches no GPU) for tasks stuck in uninterruptible **D-state** in the amdgpu/kfd path. Runs BEFORE the probe so a hung driver fails fast instead of hanging the probe itself. |
 | `gpu_healthcheck.sh` | GPU preflight probe run INSIDE the framework image: `rocminfo` + a tiny torch matmul on GPU 0. Fast, timeout-capped (`--kill-after` escalates to SIGKILL). |
-| `setup_claude.sh` | Step D: install Claude into `$CLAUDE_HOME`, install `claude_agent_sdk`, probe `claude -p`. |
+| `setup_agent.sh` | Step D dispatcher: install/probe `GEAK_AGENT_BACKEND=codex|claude`. |
+| `setup_codex.sh` | Install portable Node/Codex under `$CODEX_HOME`, verify inherited `codex login`, and probe the selected model. |
+| `setup_claude.sh` | Legacy Claude implementation: install CLI/SDK under `$CLAUDE_HOME` and probe it. |
 | `claude_setup.sh` | install + configure Claude Code (global AMD LiteLLM proxy). Re-run every container start (ephemeral fs). |
 
 **`monitor/` — liveness watchdog + post-run diagnostics**
 
 | file | role |
 |------|------|
-| `run_monitor.sh` | host-side **liveness** monitor (mid-run): `docker kill`s a confirmed-stuck run (dead GPU, NFS/OOM loop). Runs on the dispatched GPU host; **ON by default** in `stall` mode (deterministic, no deps — kills only on sustained no-write + idle-GPU/CPU evidence); optional `claude` mode feeds the `run.log` tail to a `claude -p` arbiter (needs the CLI). |
+| `run_monitor.sh` | host-side liveness monitor; default deterministic `stall` mode, with optional authenticated `claude` or `codex` arbiter modes. |
 | `monitor_prompt.md` | the liveness monitor's instructions + `VERDICT: CONTINUE\|KILL` output contract. |
-| `scan_run.sh` | **post-run** diagnostics (no claude, no deps): `run_matrix.sh` pipes one record per model here after the perf table; it scans each model's `run.log`/`slurm.out` and prints a "Run diagnostics" section — **blockers** (real failure causes: SIGKILL/OOM/GPU-HBM exhaustion, vLLM serve init failure, hard timeout, missing/errored `result.json`) vs benign **warnings** (self-recovered noise like `workflow_parse_error`) — each with the **absolute log paths** to look at. Advisory only; never changes pass/fail. |
+| `scan_run.sh` | **post-run** deterministic diagnostics (no agent dependency): scans logs and reports blockers versus warnings with absolute paths. |
 
 ## SPUR / cluster topology
 
@@ -115,7 +117,7 @@ self-hosted runner on the JUMP/LOGIN box  (no GPU here)
 sbatch  ──►  SPUR compute node(s)   (partition amd-spur, MI300x)
                  │  ci/dispatch/slurm_job.sh   (one model, tp GPUs, on 1 node)
                  │    • resolve weights from $WS/hf_models (-> shared NFS)
-                 │    • ci/node/run_local.sh  → docker → Claude → GEAK e2e → judge
+                 │    • ci/node/run_local.sh  → docker → selected agent → GEAK e2e → judge
                  ▼
         result.json under geak_runtime/<model>/ci_runs/<ts>/
         │
@@ -155,14 +157,14 @@ run_matrix waits on all jobs, aggregates a pass/fail matrix (red if any fail)
 |-----------|------------------|----------------|------|
 | Docker daemon | no — host prerequisite | host | already running |
 | framework image (`rocm/vllm-dev:…`) | pulled, not built | host docker cache | first `docker run` (preflight) |
-| Claude Code CLI + `claude_agent_sdk` | **yes, at runtime** | **inside** the container, under `$CLAUDE_HOME` (bind-mounted out) | Step D, every run |
+| Codex CLI + Node (Codex backend) | yes, at runtime when absent | inside container under mounted `$CODEX_HOME`; auth inherited from host | Step D |
+| Claude CLI + SDK (legacy backend) | yes, at runtime | inside container under `$CLAUDE_HOME` | Step D |
 | perfskills / GEAK workflow | no — it *is* the code under test | host checkout, bind-mounted in | launched last, in-container |
 
-There is no "docker install" step: docker is assumed present on the box. The only
-thing genuinely *installed* per run is **Claude**, and it happens **inside** the
-container. There are effectively **two Claudes**: the in-container **worker** (SDK
-path, drives perfskills, full tools) and the host **watchdog** (no tools, reads
-log tails, judges liveness) — independent installs/sessions.
+There is no Docker installation step. The selected agent is installed inside the
+container. Codex reuses the mounted host `CODEX_HOME` authentication; GEAK never
+copies or prints `auth.json`. The host watchdog is independent and deterministic
+unless an optional LLM monitor mode is selected.
 
 **Launch order** (everything sequential except the real run + monitor, which are concurrent):
 
@@ -179,13 +181,13 @@ HOST (run_local.sh — orchestrator)
 │
 ├─ 2. docker run --name geak_l1_…  (REAL container, BACKGROUND) ───┐  DOCKER_PID=$!
 │   ┌─ INSIDE CONTAINER, sequential (bash -lc, set -e) ────────┐   │
-│   │  D. setup_claude.sh   ← CLAUDE INSTALL                   │   │
-│   │       install Claude CLI + claude_agent_sdk; probe       │   │
-│   │       `claude -p "SETUP OK"` → die if it fails           │   │
+│   │  D. setup_agent.sh   ← SELECTED AGENT INSTALL/PROBE       │   │
+│   │       Codex: portable Node/CLI + inherited login          │   │
+│   │       Claude: CLI + SDK + configured API/gateway          │   │
 │   │            │ (only if D succeeds)                        │   │
 │   │            ▼                                             │   │
 │   │  E. run_model.sh → run_geak_e2e.sh → run_e2e.py          │   │
-│   │       ← PERFSKILLS LAUNCH (GEAK workflow via Claude SDK)  │   │
+│   │       ← GEAK workflow via Codex runtime or Claude SDK     │   │
 │   │       patch handoff, serve model, bench, optimize,       │   │
 │   │       write result.json                                  │   │
 │   │            ▼                                             │   │
@@ -194,7 +196,7 @@ HOST (run_local.sh — orchestrator)
 │   └──────────────────────────────────────────────────────────┘   │
 │                                                                   │
 ├─ 3. run_monitor.sh (HOST, BACKGROUND, PARALLEL to step 2) ────────┤
-│       every 300s: tail run.log → claude -p → CONTINUE|KILL        │
+│       deterministic stall evidence (or optional LLM vote)         │
 │       confirmed KILL (2 votes) → docker kill geak_l1_… → red      │
 │                                                                   │
 └─ 4. wait "$DOCKER_PID" → RC ──────────────────────────────────────┘
@@ -207,9 +209,8 @@ HOST (run_local.sh — orchestrator)
 1. **Preflight is a gate, not parallel.** It fully completes (and pulls the image)
    before the real run. A dead GPU costs seconds, not hours — and the real
    `docker run` reuses the now-cached image (no re-pull).
-2. **In-container D → E → F is strictly sequential and fail-fast.** Claude
-   install+probe MUST pass before perfskills launches — perfskills *is* a
-   Claude-SDK workflow, so a broken Claude means no GPU/workflow work happens.
+2. **In-container D → E → F is strictly sequential and fail-fast.** The selected
+   agent install/auth probe must pass before GEAK launches.
 3. **The real run (2) and the monitor (3) are the only concurrent pieces** — both
    launched from the host, one watching the other's `run.log`. `wait` yields the
    run's true exit code; the monitor is torn down by the EXIT trap.
@@ -220,7 +221,7 @@ HOST (run_local.sh — orchestrator)
 |------|-------|---------|
 | before probe | D-state pre-check (`gpu_dstate_check.sh`) | already-wedged driver (unkillable D-state tasks) — bail before our probe hangs too |
 | before run | GPU preflight (`gpu_healthcheck.sh`) | dead/wedged GPU, docker/device broken |
-| during run | liveness watchdog (`run_monitor.sh`, ON by default in `stall` mode; also `claude`) | mid-run stall, GPU wedge, NFS/OOM loop |
+| during run | liveness watchdog (default `stall`; optional `claude`/`codex`) | mid-run stall, GPU wedge, NFS/OOM loop |
 | after run | deterministic judge (`run_model.sh` Step F) | false-green `no_gain`, unmeasured baseline, errors |
 | after run | post-run diagnostics (`monitor/scan_run.sh`) | reports blockers vs benign warnings + log paths (advisory) |
 | absolute | workflow `timeout-minutes` | everything above failing |
@@ -238,13 +239,13 @@ bash ci/dispatch/run_matrix.sh verify --print
 bash ci/dispatch/run_matrix.sh probe  --print
 
 # L1 PROBE: fast end-to-end HARNESS check. Real SPUR allocation + docker + GPU
-# preflight + image pull + weights mount (+ Claude install), but STOPS at the
+# preflight + image pull + weights mount (+ selected agent), but STOPS at the
 # GEAK e2e doorstep — never runs the (hours-long) workflow. Judged on a probe_ok
 # marker. 'probe' auto-selects the local-weight models (currently the 3 with NFS
 # symlinks). Use this to verify SPUR/docker/weights before spending GPU-hours.
 bash ci/dispatch/run_matrix.sh probe
-# fastest infra-only probe (skip the Claude install step, too):
-GEAK_PROBE_SKIP_CLAUDE=1 bash ci/dispatch/run_matrix.sh probe
+# fastest infra-only probe (skip agent setup, too):
+GEAK_PROBE_SKIP_AGENT=1 bash ci/dispatch/run_matrix.sh probe
 # probe one model / an explicit set:
 bash ci/dispatch/run_matrix.sh Qwen-Qwen3-8B --probe
 
@@ -263,10 +264,10 @@ bash ci/dispatch/slurm_submit.sh Qwen-Qwen3-8B --budget 1800
 ```bash
 cd <workspace>/GEAK
 
-# host-only wiring check (no docker/GPU/Claude): validates handoff -> args mapping
+# host-only wiring check (no docker/GPU/agent): validates handoff -> args mapping
 bash ci/node/run_local.sh Qwen-Qwen3-8B --dry-run
 
-# infra probe (real docker/GPU/weights + Claude, stop before the e2e workflow)
+# infra probe (real docker/GPU/weights + selected agent, stop before e2e)
 bash ci/node/run_local.sh Qwen-Qwen3-8B --probe
 
 # real GPU smoke run (30-min budget)
@@ -280,8 +281,9 @@ Outputs land in `geak_runtime/<model_key>/ci_runs/<timestamp>/`:
 
 - `run.log` — full stdout/stderr of the run
 - `result.json` — the workflow result (source of truth for pass/fail)
-- `claude/` — `$CLAUDE_HOME` (Claude install + config + logs), persisted
-- `claude_tmp/` — container `TMPDIR`, incl. Claude's background-task tree, kept for post-mortem debugging
+- `claude/` — legacy `$CLAUDE_HOME` when the Claude backend is selected
+- `CODEX_HOME` — host-owned Codex login/cache, mounted only for the Codex backend
+- node-local `TMPDIR` — compiler and agent scratch kept for post-mortem debugging
 - `monitor.log` — the liveness monitor's poll-by-poll verdicts (only if the monitor ran)
 - `monitor_verdict.json` — present **only** if the monitor killed the run (records the container, reason, kill streak)
 
@@ -307,26 +309,25 @@ modes (`GEAK_MONITOR_MODE`):
   confirmed `GEAK_MONITOR_CONFIRM` times. A long silent-but-working leg (bench/build/
   profile) keeps GPU or CPU busy, so it is never killed. If GPU util can't be measured
   (no `rocm-smi`/`amd-smi`) it can't prove "idle" and degrades to **warn-only**.
-- **`claude`** — LLM arbiter: feeds the `run.log` tail to a tool-less `claude -p`
-  session that votes CONTINUE/KILL (needs `claude` on the dispatched GPU host).
+- **`claude` / `codex`** — optional LLM arbiters using the corresponding authenticated CLI.
 
 | var | default | meaning |
 |-----|---------|---------|
 | `GEAK_MONITOR` | `1` | `1` starts the watchdog (stall mode); `0` disables |
-| `GEAK_MONITOR_MODE` | `stall` | `stall` (deterministic) or `claude` (LLM arbiter) |
+| `GEAK_MONITOR_MODE` | `stall` | `stall`, `claude`, or `codex` |
 | `GEAK_MONITOR_INTERVAL_S` | `300` | seconds between polls |
 | `GEAK_MONITOR_CONFIRM` | `2` | consecutive KILL votes required before acting (hysteresis) |
 | `GEAK_MONITOR_RECHECK_S` | `300` | faster re-poll while confirming a KILL |
 | `GEAK_STALL_KILL_S` | `3600` | (stall) flat+idle duration before a kill is considered |
 | `GEAK_STALL_GPU_UTIL_PCT` | `5` | (stall) max GPU util% counted as idle |
 | `GEAK_STALL_CPU_PCT` | `5` | (stall) container CPU% counted as idle |
-| `GEAK_MONITOR_MODEL` | `claude-opus-4-8` | (claude) arbiter model |
-| `GEAK_MONITOR_TAIL_LINES` | `300` | (claude) how much of `run.log` to feed each poll |
+| `GEAK_MONITOR_MODEL` | `claude-opus-4-8` | arbiter model; Codex mode falls back to `GEAK_CODEX_MODEL` |
+| `GEAK_MONITOR_TAIL_LINES` | `300` | LLM mode log-tail size |
 | `GPU_HEALTHCHECK_TIMEOUT_S` | `120` | preflight probe cap; `0` skips preflight (CPU-only debugging) |
 | `GEAK_SKIP_DSTATE_CHECK` | `0` | set `1` to skip the D-state wedge pre-check |
 | `GEAK_DSTATE_SAMPLE_GAP_S` | `3` | seconds between the two D-state samples (sustained-detection window) |
 
-In `claude` mode the monitor no-ops gracefully if `claude` isn't on the host PATH
+In an LLM mode the monitor no-ops gracefully if its CLI is not on the host PATH
 (the run proceeds unwatched, protected by the workflow's wall-clock cap). A
 `monitor_verdict.json` is written only when the watchdog actually kills a run.
 
@@ -350,6 +351,8 @@ All timeouts / caps / intervals / toggles have their defaults in **`ci/config.sh
 | `IMAGE` | resolved from the docker preset | override the container image |
 | `MODEL_PATH` | resolved on node (see below) | override weights dir |
 | `PERFSKILLS_E2E_TIMEOUT_S` | `57600` | workflow wall-clock budget fallback (also via `--budget`) |
+| `GEAK_AGENT_BACKEND` | `claude` in CI | `codex` or `claude`; local package bootstrap defaults to Codex |
+| `GEAK_CODEX_MODEL` / `GEAK_CODEX_REASONING_EFFORT` | `gpt-5.6-sol` / `high` | Codex worker selection |
 | `LITELLM_API_KEY` / `LITELLM_BASE_URL` | **required** (no default; from CI secrets or local export) | Claude auth via the global LiteLLM proxy. `claude_setup.sh` errors if unset — nothing is hardcoded. |
 
 ### SPUR / weights overrides
@@ -365,10 +368,11 @@ All timeouts / caps / intervals / toggles have their defaults in **`ci/config.sh
 | _(pending policy)_ | n/a | `run_matrix.sh` waits on PENDING jobs **indefinitely** (there is no pending timeout). It returns only when **no** job is pending or running; a job that crashes/cancels is logged and the rest are still waited on. A *held* requeue (`JobHoldMaxRequeue`) is auto-released once, but jobs are never scancelled for pending too long — cancel a long-pending job by hand on the cluster. The GitHub `timeout-minutes` is the only outer backstop. |
 | `SPUR_CPUS_PER_GPU` | `8` | cpus-per-task = `tp * this` |
 | `SPUR_TIME_HEADROOM_S` | `7200` | added to the GEAK budget for the sbatch `-t` wall clock |
-| `SPUR_PROBE_TIME` | `1:00:00` | fixed sbatch `-t` wall clock for `--probe` jobs (image pull + Claude, no e2e) |
+| `SPUR_PROBE_TIME` | `1:00:00` | fixed sbatch wall clock for probe jobs (image pull + agent, no e2e) |
 | `GEAK_HARD_TIMEOUT_S` | `budget + SPUR_TIME_HEADROOM_S - GEAK_KILL_BUFFER_S - <pre-run elapsed>` | `run_local.sh` watchdog `docker kill`s the container after this many seconds — a clean, supervised cut ~`GEAK_KILL_BUFFER_S` BEFORE SLURM's `-t` (writes `timeout.json`, judged FAIL). The pre-run elapsed (D-state check + cold image pull + GPU preflight) is subtracted so the cut stays before SLURM's wall clock even after a slow cold-node pull. Prevents orphaned GPU containers on timeout. |
 | `GEAK_KILL_BUFFER_S` | `300` | how far ahead of the SPUR wall clock the watchdog fires (kill before SLURM's untrappable SIGKILL) |
-| `GEAK_PROBE_SKIP_CLAUDE` | `0` | `1` = skip the Claude install step in `--probe` (fastest infra-only check) |
+| `GEAK_PROBE_SKIP_AGENT` | `0` | `1` = skip selected-agent setup in probe mode |
+| `GEAK_PROBE_SKIP_CLAUDE` | `0` | deprecated alias for `GEAK_PROBE_SKIP_AGENT` |
 | `HF_MODELS_DIR` | `$WS/hf_models` | per-model_key weights catalog (dirs or symlinks into NFS) |
 | `WEIGHTS_EXTRA_MOUNTS` | _(unset)_ | colon-separated EXTRA NFS roots bind-mounted (ro, same-path) ON TOP of the set auto-derived from the catalog symlink chain |
 | `WEIGHTS_CACHE` | `$HF_MODELS_DIR` | writable dir weights are downloaded into (keyed by model_key) |

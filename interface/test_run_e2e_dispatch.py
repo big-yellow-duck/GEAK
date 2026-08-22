@@ -1415,6 +1415,29 @@ class TestInvokeViaCli(_RunE2ECase):
 
 
 class TestInvokeWorkflow(_RunE2ECase):
+    def test_codex_backend_bypasses_driver_agent_and_receives_mapped_args(self):
+        mapped = {"workflow_dir": "/repo/e2e_workflow", "eval_dir": "/run/codex"}
+        prompt = rx.build_prompt(mapped)
+        seen = []
+        self.patch_rx("AGENT_BACKEND", "codex")
+        self.patch_rx("_invoke_via_codex", lambda args, timeout: (
+            seen.append((args, timeout)) or '{"eval_dir":"/run/codex"}'
+        ))
+        self.patch_rx("_invoke_via_sdk", lambda *a: self.fail("Claude SDK must not run"))
+        wf = rx.invoke_workflow(prompt, 123, mapped["eval_dir"])
+        self.assertEqual(wf["eval_dir"], "/run/codex")
+        self.assertEqual(seen, [(mapped, 123)])
+
+    def test_explicit_codex_rejects_an_unmapped_free_form_prompt(self):
+        self.patch_rx("AGENT_BACKEND", "codex")
+        with self.assertRaisesRegex(ValueError, "mapped args"):
+            rx.invoke_workflow("arbitrary prompt", 10)
+
+    def test_backend_validation_rejects_unknown_value(self):
+        self.patch_rx("AGENT_BACKEND", "other")
+        with self.assertRaisesRegex(ValueError, "auto, codex, or claude"):
+            rx._resolve_agent_backend()
+
     def test_sdk_path_is_preferred_and_receives_the_pinned_eval_dir(self):
         self.install_module("claude_agent_sdk", _make_fake_sdk([]))
         seen = []

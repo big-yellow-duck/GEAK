@@ -1,12 +1,12 @@
-"""GEAK v4 bootstrap — clone the repo locally and install the Claude Code CLI.
+"""GEAK v4 bootstrap — clone the repo and install the selected agent harness.
 
-GEAK v4 is not a package you `import`; its Workflows run *inside* Claude Code
-from a repo checkout. So `pip install git+https://github.com/AMD-AGI/GEAK` does
+GEAK v4 is not a package you `import`; its Workflows run through Codex CLI or
+Claude Code from a repo checkout. So ``pip install git+...`` does
 three things:
 
   1. pip installs the Python runtime deps (pyproject.toml [project.dependencies]).
   2. This bootstrap clones the full GEAK repo to a working dir ($GEAK_HOME).
-  3. This bootstrap installs the Claude Code CLI (native installer; npm fallback).
+  3. This bootstrap installs the selected agent CLI when possible.
 
 Everything here is best-effort: a failure warns but never aborts the install.
 It runs once, during the wheel build — there is no separate re-run command.
@@ -17,6 +17,7 @@ Env knobs:
                    itself when run from inside one)
   GEAK_REPO_URL    repo to clone                   (default: the AMD-AGI repo)
   GEAK_REF         branch/tag to clone             (default: repo default branch)
+  GEAK_AGENT_BACKEND  codex | claude               (default: codex)
   CLAUDE_VERSION   native-installer target         (default: latest)
   CLAUDE_BIN_DIR   where the CLI lands             (default: ~/.local/bin)
   GEAK_SKIP_BOOTSTRAP  set to skip step 2+3 (CI/docker image builds)
@@ -83,6 +84,7 @@ GEAK_HOME = os.path.abspath(os.path.expanduser(
     _env("GEAK_HOME", _default_geak_home())))
 CLAUDE_VERSION = _env("CLAUDE_VERSION", "latest")
 CLAUDE_BIN_DIR = os.path.abspath(os.path.expanduser(_env("CLAUDE_BIN_DIR", os.path.join("~", ".local", "bin"))))
+AGENT_BACKEND = _env("GEAK_AGENT_BACKEND", "codex").strip().lower()
 
 # Bold-green styling for the copy-paste commands in the printed next-steps, but
 # only when stdout is a real terminal (keep piped logs free of escape junk).
@@ -137,6 +139,15 @@ def claude_version() -> str:
         return ""
     m = re.search(r"[0-9]+\.[0-9]+\.[0-9]+", out or "")
     return m.group(0) if m else ""
+
+
+def codex_version() -> str:
+    """Version text from ``codex --version``, or empty when unavailable."""
+    try:
+        proc = subprocess.run(["codex", "--version"], capture_output=True, text=True)
+    except Exception:
+        return ""
+    return (proc.stdout or proc.stderr or "").strip() if proc.returncode == 0 else ""
 
 
 # --- 1. Download the repo -------------------------------------------------
@@ -228,6 +239,37 @@ def ensure_claude_code() -> None:
              "CLAUDE_VERSION" % (cur, CLAUDE_MIN_VERSION))
 
 
+def ensure_codex_cli() -> None:
+    """Ensure Codex and the Node.js workflow evaluator are available.
+
+    Authentication is intentionally left untouched: an existing ``codex login``
+    session is portable across GEAK invocations and may use a ChatGPT subscription.
+    """
+    cur = codex_version()
+    if cur:
+        log("Codex CLI present (%s)" % cur)
+    elif _has("npm"):
+        log("installing Codex CLI via npm")
+        if _run(["npm", "install", "-g", "@openai/codex"]).returncode != 0:
+            warn("Codex CLI install failed; install it manually, then run 'codex login'")
+    else:
+        warn("Codex CLI not found and npm is unavailable; install Codex manually")
+
+    if not (_has("node") or _has("nodejs")):
+        warn("Node.js 18+ is required by GEAK's portable workflow compatibility "
+             "runtime. Install Node.js before running with GEAK_AGENT_BACKEND=codex.")
+
+
+def ensure_agent_harness() -> None:
+    """Install/check only the selected harness; never require both providers."""
+    if AGENT_BACKEND == "codex":
+        ensure_codex_cli()
+    elif AGENT_BACKEND == "claude":
+        ensure_claude_code()
+    else:
+        warn("unknown GEAK_AGENT_BACKEND=%r; use codex or claude" % AGENT_BACKEND)
+
+
 # --- 3. Environment prerequisites (detect only) --------------------------
 
 def check_environment() -> None:
@@ -261,6 +303,22 @@ def check_environment() -> None:
 # --- 4. Next steps -------------------------------------------------------
 
 def print_next_steps() -> None:
+    if AGENT_BACKEND == "codex":
+        print(
+            "\n[geak-bootstrap] setup complete.\n\n"
+            "Next steps — authenticate Codex, then run GEAK:\n\n"
+            "1) Sign in with your ChatGPT subscription (one time):\n"
+            "     %scodex login%s\n\n"
+            "2) Run the stable GEAK interface with the Codex backend:\n"
+            "     %scd %s%s\n"
+            "     %sGEAK_AGENT_BACKEND=codex python interface/run_e2e.py "
+            "<handoff.json> <result.json>%s\n\n"
+            "Optional: GEAK_CODEX_MODEL, GEAK_CODEX_REASONING_EFFORT, "
+            "GEAK_CODEX_CONCURRENCY, GEAK_CODEX_BIN, GEAK_CODEX_NODE_BIN."
+            % (C_CMD, C_OFF, C_CMD, GEAK_HOME, C_OFF, C_CMD, C_OFF)
+        )
+        return
+
     on_path = any(os.path.abspath(p) == CLAUDE_BIN_DIR for p in os.environ.get("PATH", "").split(os.pathsep) if p)
     if not on_path and os.path.isfile(os.path.join(CLAUDE_BIN_DIR, "claude")):
         print(
@@ -292,10 +350,10 @@ def print_next_steps() -> None:
 
 def main() -> None:
     if os.environ.get("GEAK_SKIP_BOOTSTRAP"):
-        log("GEAK_SKIP_BOOTSTRAP set; skipping repo clone and Claude Code install")
+        log("GEAK_SKIP_BOOTSTRAP set; skipping repo clone and agent-harness install")
         return
     log("GEAK_HOME=%s" % GEAK_HOME)
     clone_repo()
-    ensure_claude_code()
+    ensure_agent_harness()
     check_environment()
     print_next_steps()

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "geak"
 version = "4.0.0"
-description = "GEAK v4 — clones the repo locally and installs the Claude Code CLI its Workflows run inside."
+description = "GEAK v4 — AMD GPU optimization workflows for Codex CLI and Claude Code."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE.md" }
@@ -31,7 +31,7 @@ packages = ["geak"]
 
 # NOTE: metadata + deps live here (PEP 621). setup.py stays only because a
 # [project] table can't express the build-time bootstrap hook (clone repo +
-# install Claude Code) that runs during `pip install git+...`.
+# install the selected agent harness) that runs during `pip install git+...`.
 
 # ---------------------------------------------------------------------------
 # Coverage. Measured by the `pytest` job in .github/workflows/ci-l0-checks.yml,

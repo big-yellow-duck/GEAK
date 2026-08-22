@@ -8,8 +8,8 @@ myst:
 # What is GEAK?
 
 GEAK (Generating Efficient AI-Centric Kernels) is a multi-agent GPU performance optimizer for AMD
-Instinct™ MI GPUs (CDNA; the on-box card is auto-detected). It ships two deterministic Workflows,
-driven by Claude Code:
+Instinct™ MI GPUs (CDNA; the on-box card is auto-detected). It ships two deterministic workflows,
+driven by Codex CLI or Claude Code:
 
 | Workflow | Scope | What it optimizes |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ against an immutable correctness oracle before it is accepted.
 
 ## Related topics
 
-- [Install GEAK](install/install.md): set up the environment and Claude Code.
-- [Run a workflow](how-to/run-agent.md): invoke a workflow from Claude Code or the `run_e2e.py` interface.
+- [Install GEAK](install/install.md): set up the environment and an agent harness.
+- [Run a workflow](how-to/run-agent.md): invoke a workflow through Codex, Claude, or `run_e2e.py`.
 - [GEAK pipeline](conceptual/geak-pipeline.md): the phases of an end-to-end run.
 - [Reference](reference/api-reference.md): Workflow arguments, the integration contract, and run artifacts.

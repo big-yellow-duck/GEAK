@@ -20,7 +20,7 @@ MODEL_DIR="$HF_LOGS/$MODEL_KEY"
 # -> priors missed -> profiler silently falls back to torch-trace. The workflow
 # auto-timestamps its eval_dir (geak/e2e_<model>_<ts>), so runs stay distinguishable.
 EXP_ROOT="${EXP_ROOT:-$MODEL_DIR/geak}"
-# Timestamped run folder for CI-level outputs (result.json + logs + claude state).
+# Timestamped run folder for CI-level outputs (result.json + logs + agent state).
 RUN_TS="${RUN_TS:-$(new_ts)}"
 OUT_DIR="${OUT_DIR:-$MODEL_DIR/ci_runs/$RUN_TS}"
 mkdir -p "$OUT_DIR" "$EXP_ROOT"
@@ -32,9 +32,12 @@ MODEL_PATH="${MODEL_PATH:-$(model_weights "$MODEL_KEY" 2>/dev/null || true)}"
 if [ "$DRY" != "--dry-run" ]; then
   [ -n "$MODEL_PATH" ] && [ -d "$MODEL_PATH" ] \
     || die "weights not found for $MODEL_KEY (MODEL_PATH='$MODEL_PATH')"
-  # Claude was installed under CLAUDE_HOME by Step D; make it reachable here too.
-  if [ -n "${CLAUDE_HOME:-}" ]; then
+  # Claude is installed under CLAUDE_HOME. Codex setup leaves its CLI on PATH
+  # and uses CODEX_HOME without replacing the process HOME.
+  if [ "${GEAK_AGENT_BACKEND:-claude}" = claude ] && [ -n "${CLAUDE_HOME:-}" ]; then
     export HOME="$CLAUDE_HOME"; export PATH="$HOME/.local/bin:$PATH"
+  elif [ "${GEAK_AGENT_BACKEND:-claude}" = codex ] && [ -n "${CODEX_HOME:-}" ]; then
+    export PATH="$CODEX_HOME/node/bin:$CODEX_HOME/npm/node_modules/.bin:$PATH"
   fi
 fi
 

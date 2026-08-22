@@ -9,8 +9,8 @@ myst:
 
 `interface/` is the only surface an external orchestrator (for example, Hyperloom)
 touches. Everything volatile about the e2e workflow (the `e2e_workflow.js` arg
-names, the Claude Code `Workflow` invocation, the `--effort ultracode`
-requirement, the SDK-vs-CLI choice) is hidden behind one command and two JSON
+names, Codex compatibility runtime or Claude Workflow invocation, model settings,
+and harness choice) is hidden behind one command and two JSON
 files. The result schema is versioned so callers can distinguish contract
 changes while the workflow evolves internally.
 

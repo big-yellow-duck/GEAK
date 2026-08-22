@@ -6,11 +6,12 @@ build-time hook, and GEAK needs one so that
     pip install git+https://github.com/AMD-AGI/GEAK
 
 runs a best-effort bootstrap during the wheel build (clone the full repo to
-$GEAK_HOME + install the Claude Code CLI). The logic lives in geak/bootstrap.py.
+$GEAK_HOME + install the selected Codex/Claude harness). The logic lives in
+geak/bootstrap.py.
 
 The hook fires only on a real wheel build; if pip serves a cached wheel it is
 skipped, so force a rebuild with `pip install --no-cache-dir --force-reinstall`
-if the clone / Claude Code steps did not run.
+if the clone / harness steps did not run.
 
 Set GEAK_SKIP_BOOTSTRAP=1 to build/install the package without side effects
 (CI, docker image builds, or using geak purely as a library dependency).
@@ -41,7 +42,7 @@ def run_bootstrap():
 
 class BuildPyWithBootstrap(build_py):
     """Runs at wheel-build time — which for `pip install git+...` is the user's
-    machine — so the clone + Claude Code install happen during `pip install`."""
+    machine — so the clone + selected harness install happen during `pip install`."""
 
     def run(self):
         super().run()

@@ -1,5 +1,5 @@
 .. meta::
-   :description: GEAK is an AMD multi-agent system that optimizes GPU kernels and whole-model serving throughput on ROCm, driven by Claude Code and deterministic JS Workflows.
+   :description: GEAK is an AMD multi-agent system that optimizes GPU kernels and whole-model serving throughput on ROCm, driven by Codex CLI or Claude Code and deterministic JS workflows.
    :keywords: GEAK, ROCm, GPU kernel optimization, serving throughput, sglang, vLLM, AMD Instinct, Triton, HIP, CK, FlyDSL
 
 GEAK documentation

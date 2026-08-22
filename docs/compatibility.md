@@ -1,14 +1,14 @@
 ---
 myst:
     html_meta:
-        "description": "Verified hardware, software, runtime, and backend combinations for GEAK 4.0.0, AMD Instinct GPUs, ROCm, Claude Code, serving backends, kernel languages, and data types."
-        "keywords": "GEAK, compatibility, ROCm, AMD Instinct, MI300X, MI355X, sglang, vLLM, Triton, HIP, CK, FlyDSL, Claude Code"
+        "description": "Verified hardware, software, agent runtime, and backend combinations for GEAK 4.0.0."
+        "keywords": "GEAK, compatibility, ROCm, AMD Instinct, Codex CLI, Claude Code, vLLM"
 ---
 
 # GEAK compatibility matrix
 
-Verified hardware, software, runtime, and backend combinations for GEAK 4.0.0 (a Claude Code +
-JS-Workflow GPU optimizer; no pip package, no CLI). Only tested configurations are listed.
+Verified hardware, software, runtime, and backend combinations for GEAK 4.0.0, a deterministic
+JS-workflow GPU optimizer supporting Codex CLI and Claude Code.
 
 Use the following matrix to view the compatibility and system requirements:
 
@@ -25,20 +25,21 @@ to the local `gfx` at build time.
 - For the Python version, the compiled artifacts in the tree are cpython-312.
 ```
 
-## Runtime — Claude Code
+## Agent runtime
 
 | Component | Version | Notes |
 |---|---|---|
-| Claude Code | ≥ 2.1.177 | The workflows use the dynamic Workflow (JS orchestration) feature, available only from this version. Check with `claude --version`. |
-| Launch mode | `IS_SANDBOX=1 claude --dangerously-skip-permissions` | Workflows spawn sub-agents and run profiling, benchmark, and build commands on the box, so permissions must be auto-approved. |
-| Default model | `claude-opus-4-8` | Default used by the external-orchestrator entry point (`interface/run_e2e.py`). |
-| Effort | `ultracode` | Default effort for `interface/run_e2e.py`. |
+| Codex CLI | Current CLI plus Node.js 18+ | Default local backend; authenticates with `codex login` and can use ChatGPT subscription access. |
+| Codex model | `gpt-5.6-sol` / `high` | Configurable with `GEAK_CODEX_MODEL` and `GEAK_CODEX_REASONING_EFFORT`. |
+| Claude Code | ≥ 2.1.177 | Optional legacy backend selected with `GEAK_AGENT_BACKEND=claude`. |
+| Permissions | Controlled host/container only | Agents run profiling, builds, and benchmarks with full filesystem/process access. |
 
 ## Invocation mode
 
 | Mode | Notes |
 |---|---|
-| Natural language → `Workflow` tool | Describe the task to Claude Code; it maps the prompt onto `Workflow({ scriptPath, args })`. |
+| Codex compatibility runtime | `node interface/codex_workflow_runner.mjs --script ... --args-file ...` |
+| Claude natural language → `Workflow` | Legacy Claude Code discovery/invocation path. |
 | Direct `Workflow` call (e2e) | `scriptPath: "<repo>/e2e_workflow/e2e_workflow.js"` | 
 | Direct `Workflow` call (single kernel) | `scriptPath: "<repo>/kernel_workflow/kernel_workflow.js"` | 
 | External orchestrator (Hyperloom) | `python interface/run_e2e.py <handoff.json> <result.json>` | 
@@ -99,4 +100,3 @@ The serving stack is not baked in; `args.backend` selects `scripts/adapters/<bac
 |---|---|
 | `none` (default) | Throughput delta + greedy output parity. |
 | `gsm8k` | Sampled gsm8k (5-shot, greedy, fixed seed) using `scripts/gsm8k_eval.py` against an OpenAI-compatible `/v1` endpoint. | 
-

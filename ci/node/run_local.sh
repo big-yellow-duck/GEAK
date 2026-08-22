@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Top-level LOCAL launcher (no GitHub yet).
-#   real run  -> docker (GPU passthrough + same-path mount + Claude)
-#   --dry-run -> host only (no docker/GPU/Claude), validates handoff->args wiring
+#   real run  -> docker (GPU passthrough + same-path mount + selected agent)
+#   --dry-run -> host only (no docker/GPU/agent), validates handoff->args wiring
 #
 # Usage:
 #   ci/run_local.sh <model_key> [--dry-run] [--budget SECONDS]
@@ -10,10 +10,8 @@
 #   ci/run_local.sh Qwen-Qwen3-8B --budget 1800
 #   IMAGE=rocm/vllm-dev:some-gfx950-tag ci/run_local.sh Qwen-Qwen3-8B
 #
-# The container's TMPDIR always points at a per-run bind-mounted dir so Claude Code's
-# background-task tree (/tmp/claude-<uid>/.../tasks/*) survives the container for
-# post-mortem debugging. (Note: this also redirects other tools' scratch onto the
-# host mount.)
+# The container's TMPDIR always points at a per-run bind-mounted dir so agent and
+# compiler scratch survives the container for post-mortem debugging.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
@@ -25,7 +23,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY="--dry-run" ;;
     # --probe: exercise the REAL infra (SPUR alloc, docker, GPU preflight, image
-    # pull, weights mount, optional Claude install) but STOP at the GEAK e2e
+    # pull, weights mount, optional agent install) but STOP at the GEAK e2e
     # doorstep instead of running the (hours-long) workflow. Fast harness check.
     --probe)   PROBE=1 ;;
     --budget)  BUDGET="${2:?}"; shift ;;
@@ -61,7 +59,7 @@ mkdir -p "$OUT_DIR"
 
 # ---- dry-run: host only, no container ----
 if [ "$DRY" = "--dry-run" ]; then
-  log "DRY-RUN on host (no docker/GPU/Claude) -> $OUT_DIR"
+  log "DRY-RUN on host (no docker/GPU/agent) -> $OUT_DIR"
   RUN_TS="$RUN_TS" OUT_DIR="$OUT_DIR" bash "$HERE/run_model.sh" "$MODEL_KEY" --dry-run
   exit $?
 fi
@@ -78,10 +76,19 @@ log "model=$MODEL_KEY fw=$FW image=$IMAGE weights=$WEIGHTS ts=$RUN_TS budget=${B
 # harness (all heads flagged, no kernel ever optimized). Proven on gfx950: identical
 # torch eager ops give RC=0 with TMPDIR=/tmp but RC=139 with TMPDIR on NFS.
 # A long NFS path also overflows the ZMQ IPC 107-char sun_path limit. We bind it
-# same-path so Claude's temp tree still survives the (--rm) container for on-node debug.
+# same-path so agent/compiler scratch survives the (--rm) container for on-node debug.
 DBG_TMP="/tmp/geak_ci/$MODEL_KEY/$RUN_TS"
 mkdir -p "$DBG_TMP"
-log "TMPDIR=$DBG_TMP (node-local scratch; Claude task tree persisted here)"
+log "TMPDIR=$DBG_TMP (node-local agent/compiler scratch persisted here)"
+
+# Codex subscription auth is owned by Codex itself. For the Codex backend,
+# mount the already-authenticated host CODEX_HOME at the identical path.
+CODEX_MOUNT=()
+HOST_CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+if [ "${GEAK_AGENT_BACKEND:-claude}" = codex ]; then
+  [ -d "$HOST_CODEX_HOME" ] || die "Codex backend selected but CODEX_HOME does not exist: $HOST_CODEX_HOME (run codex login)"
+  CODEX_MOUNT=(-v "$HOST_CODEX_HOME:$HOST_CODEX_HOME")
+fi
 
 # Same-path bind mounts so paths are identical inside and outside the container:
 #   $WS          — workspace (geak_runtime, InferenceX, ...)
@@ -201,10 +208,11 @@ CONTAINER_NAME="geak_l1_${MODEL_KEY//[^A-Za-z0-9_.-]/_}_${RUN_TS}"
 # kill this container if the run wedges (dead GPU, NFS stall, OOM loop) instead of
 # hanging until the job's wall-clock timeout. We
 # then `wait` for the real exit code so the CI step reports pass/fail correctly.
-# In-container command. Normal: install Claude then run the GEAK e2e workflow.
-# Probe: verify weights are readable in-container, (optionally) install Claude,
+# In-container command. Normal: install the selected agent then run GEAK.
+# Probe: verify weights are readable in-container, (optionally) install the agent,
 # validate the GEAK arg mapping via run_model --dry-run, then STOP — never enter
-# the real e2e workflow. Set GEAK_PROBE_SKIP_CLAUDE=1 for the fastest infra-only probe.
+# the real e2e workflow. Set GEAK_PROBE_SKIP_AGENT=1 for the fastest infra-only probe
+# (`GEAK_PROBE_SKIP_CLAUDE` remains a backward-compatible alias).
 # Leave the bind-mounted checkout owned by the host user, not root. A container
 # process (running as root) that imports/byte-compiles python drops
 # __pycache__/*.pyc into $GEAK_ROOT; on NFS those become root-owned and break the
@@ -221,7 +229,7 @@ if [ "$PROBE" = "1" ]; then
     echo \"== PROBE: container up on \$(hostname) ==\"
     echo \"PROBE: MODEL_PATH=\$MODEL_PATH\"
     if [ -f \"\$MODEL_PATH/config.json\" ]; then echo 'PROBE: weights readable in container OK'; else echo 'PROBE FAIL: weights not readable in container'; exit 3; fi
-    if [ \"\${GEAK_PROBE_SKIP_CLAUDE:-0}\" != 1 ]; then bash '$GEAK_ROOT/ci/preflight/setup_claude.sh'; else echo 'PROBE: skipping Claude setup (GEAK_PROBE_SKIP_CLAUDE=1)'; fi
+    if [ \"\${GEAK_PROBE_SKIP_AGENT:-\${GEAK_PROBE_SKIP_CLAUDE:-0}}\" != 1 ]; then bash '$GEAK_ROOT/ci/preflight/setup_agent.sh'; else echo 'PROBE: skipping agent setup'; fi
     bash '$GEAK_ROOT/ci/node/run_model.sh' '$MODEL_KEY' --dry-run
     echo '== PROBE OK: infra verified up to GEAK phase entry; stopping before the e2e workflow =='
   "
@@ -229,7 +237,7 @@ else
   CONTAINER_CMD="
     set -e
     $GC_ONEXIT
-    bash '$GEAK_ROOT/ci/preflight/setup_claude.sh'
+    bash '$GEAK_ROOT/ci/preflight/setup_agent.sh'
     bash '$GEAK_ROOT/ci/node/run_model.sh' '$MODEL_KEY'
   "
 fi
@@ -238,13 +246,15 @@ docker run --rm --name "$CONTAINER_NAME" \
   --label spur_job_id="${SLURM_JOB_ID:-}" \
   --device /dev/kfd --device /dev/dri --group-add video \
   --security-opt seccomp=unconfined --ipc=host --shm-size 32g \
-  -v "$WS:$WS" -v "$MODELS_ROOT:$MODELS_ROOT" -v "$DBG_TMP:$DBG_TMP" "${GEAK_MOUNT[@]}" "${WEIGHTS_MOUNTS[@]}" \
+  -v "$WS:$WS" -v "$MODELS_ROOT:$MODELS_ROOT" -v "$DBG_TMP:$DBG_TMP" "${GEAK_MOUNT[@]}" "${WEIGHTS_MOUNTS[@]}" "${CODEX_MOUNT[@]}" \
   -e WS="$WS" -e HF_LOGS="$HF_LOGS" -e INFERENCEX_PATH="$INFERENCEX_PATH" \
   -e GEAK_ROOT="$GEAK_ROOT" -e MODELS_TSV="$MODELS_TSV" \
-  -e MODEL_PATH="$WEIGHTS" -e GEAK_PROBE_SKIP_CLAUDE \
+  -e MODEL_PATH="$WEIGHTS" -e GEAK_PROBE_SKIP_CLAUDE -e GEAK_PROBE_SKIP_AGENT \
   -e LITELLM_API_KEY -e LITELLM_BASE_URL -e NODE_TLS_REJECT_UNAUTHORIZED=0 \
   -e RUN_TS="$RUN_TS" -e OUT_DIR="$OUT_DIR" \
   -e CLAUDE_HOME="$OUT_DIR/claude" \
+  -e CODEX_HOME="$HOST_CODEX_HOME" \
+  -e GEAK_AGENT_BACKEND -e GEAK_CODEX_MODEL -e GEAK_CODEX_REASONING_EFFORT -e GEAK_CODEX_CONCURRENCY \
   -e PERFSKILLS_E2E_TIMEOUT_S="$BUDGET" \
   -e PERFSKILLS_CLAUDE_MODEL \
   -e BENCH_LAUNCHER \

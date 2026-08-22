@@ -1,7 +1,7 @@
 name: CI L0 — checks
 
 # L0: cheap, fast, GPU-free checks that gate every push / PR.
-# Runs entirely on GitHub-hosted ubuntu runners — no dataset, no GPU, no Claude,
+# Runs entirely on GitHub-hosted ubuntu runners — no dataset, no GPU, no model calls,
 # no secrets. The expensive GPU e2e lives in the self-hosted L1 workflow.
 
 on:
@@ -44,8 +44,11 @@ jobs:
       # dependency, so the job keeps its no-install-beyond-ruff shape.
       - name: bash syntax check (e2e shell contract)
         run: |
-          find e2e_workflow/scripts kernel_workflow/scripts -name '*.sh' -print0 \
+          find e2e_workflow/scripts kernel_workflow/scripts ci -name '*.sh' -print0 \
             | xargs -0 -n1 bash -n
+
+      - name: Codex workflow compatibility runtime
+        run: node --test interface/test_codex_workflow_runner.mjs
 
   pytest:
     name: Python unit tests + coverage

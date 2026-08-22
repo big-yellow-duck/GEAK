@@ -55,7 +55,7 @@ CPUS=$(( GPUS * SPUR_CPUS_PER_GPU ))
 if [ "$SPUR_AUTOSELECT" = "1" ] && [ "$PRINT" != "1" ]; then
   read -r SPUR_ACCOUNT SPUR_QOS < <(pick_account "$GPUS")
 fi
-# Probe: fixed short wall time (image pull + optional Claude, no e2e); else budget + headroom.
+# Probe: fixed short wall time (image pull + optional agent, no e2e); else budget + headroom.
 if [ "$PROBE" = "1" ]; then
   TIME="$SPUR_PROBE_TIME"
 else

@@ -8,7 +8,7 @@
 #      shared NFS; downloads if absent — NFS is mounted on the compute node),
 #   2. forward the SLURM GPU allocation into the container, and
 #   3. hand off to the existing ci/node/run_local.sh, which does the real work
-#      (D-state/GPU preflight -> docker -> Claude -> GEAK e2e -> monitor -> judge)
+#      (D-state/GPU preflight -> docker -> selected agent -> GEAK e2e -> monitor -> judge)
 #      and writes result.json under geak_runtime/<model>/ci_runs/<RUN_TS>/.
 #
 # Usage (normally invoked by ci/dispatch/slurm_submit.sh, not by hand):
@@ -38,7 +38,7 @@ log "  weights=$MODEL_PATH"
 export GEAK_GPUS="${GEAK_GPUS:-${ROCR_VISIBLE_DEVICES:-}}"
 
 # 3. Real run. run_local computes OUT_DIR=$HF_LOGS/$MODEL_KEY/ci_runs/$RUN_TS,
-#    does all GPU/Docker/Claude work, and exits non-zero on any failure.
+#    does all GPU/Docker/agent work, and exits non-zero on any failure.
 #    GEAK_CI_PROBE=1 (set by slurm_submit --probe) instead verifies the infra up
 #    to the GEAK e2e doorstep and stops — a fast end-to-end harness check.
 if [ "${GEAK_CI_PROBE:-0}" = "1" ]; then

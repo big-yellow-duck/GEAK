@@ -1,14 +1,14 @@
 ---
 myst:
     html_meta:
-        "description": "Run a GEAK v4 workflow from Claude Code: end-to-end sglang/vLLM serving-throughput optimization or single-kernel optimization, with depth modes and the accuracy gate."
-        "keywords": "GEAK, run workflow, serving throughput, single kernel, Claude Code, Workflow, sglang, vLLM, deep mode, gsm8k"
+        "description": "Run a GEAK v4 workflow with Codex CLI or Claude Code."
+        "keywords": "GEAK, run workflow, serving throughput, single kernel, Codex CLI, Claude Code, sglang, vLLM"
 ---
 
 # Run a GEAK workflow
 
-GEAK v4 runs inside Claude Code, orchestrated by deterministic JS Workflows. There is no
-`pip install` and no CLI: launch Claude Code and describe the task; it invokes the `Workflow` tool.
+GEAK v4 uses deterministic JS workflows with Codex CLI or Claude Code. The stable
+`interface/run_e2e.py` entry point selects the harness and keeps its handoff/result contract unchanged.
 
 ## Prerequisites
 
@@ -17,30 +17,30 @@ Before running a workflow, ensure the following are in place.
 - **AMD Instinct™ MI GPU**: CDNA (gfx942 / gfx950), auto-detected.
 - **ROCm 6+** with `rocminfo` / `rocm-smi`, and a profiler (`rocprof-compute` / `rocprofv3` / `rocprof`).
 - **Python 3.8+**.
-- **Claude Code ≥ 2.1.177** (dynamic Workflow feature). Check `claude --version`.
+- **Codex CLI plus Node.js 18+** (default), authenticated with `codex login`; or Claude Code ≥2.1.177.
 - **For E2E:** a running-capable `sglang` or `vllm` and the model weights on disk.
 
-## Get the repo and launch Claude Code
+## Get the repo and authenticate Codex
 
-Clone the GEAK repository and launch Claude Code in sandbox mode.
+Clone GEAK and use the normal Codex ChatGPT login:
 
 ```bash
-claude update                          # ensure Claude Code >= 2.1.177
 git clone https://github.com/AMD-AGI/GEAK.git && cd GEAK
-IS_SANDBOX=1 claude --dangerously-skip-permissions
+codex login
+codex login status
 ```
 
-Sandbox mode auto-approves permissions, which the workflows need to run profiling, benchmark, and build
-commands.
+The GEAK compatibility runner invokes `codex exec` non-interactively with schema-constrained results and
+full permissions; use it only on a controlled GPU host/container.
 
-## Run a workflow (natural language)
+## Run an end-to-end workflow
 
-The path you give Claude Code (for example, `path_to_GEAK/e2e_workflow`) is mapped to the `workflow_dir` argument that the workflow requires. Replace `path_to_GEAK` with the absolute path to your cloned GEAK repository.
+Use the same handoff/result interface used by external orchestrators:
 
-### End-to-end serving throughput (e2e_workflow)
-
-```
-use /absolute/path/to/GEAK/e2e_workflow to optimize inference for /models/Qwen3.5-27B-FP8, sglang, ISL/OSL=1024, conc=64, gpus 0,1,2,3
+```bash
+GEAK_AGENT_BACKEND=codex \
+GEAK_CODEX_MODEL=gpt-5.6-sol \
+python interface/run_e2e.py /absolute/path/handoff.json /absolute/path/result.json
 ```
 
 Profiles a running server, triages hot kernels by Amdahl (`pct_gpu_time × achievable_speedup`), pulls
@@ -50,17 +50,27 @@ loop), and overlays each accepted change back reversibly, gated on a measured th
 Output: `e2e_workflow/exp/e2e_<model>_<timestamp>/` — `final_report.md`, `architect_report.md`, `final/`
 (overlay + patch + `final_launch.sh`).
 
-### Single kernel (kernel_workflow)
+## Run a single-kernel workflow
 
+```json
+{
+  "kernel_path": "/absolute/path/to/kernel",
+  "workflow_dir": "/absolute/path/to/GEAK/kernel_workflow",
+  "mode": "optimize",
+  "budget": 8,
+  "gpu_ids": "0"
+}
 ```
-use /absolute/path/to/GEAK/kernel_workflow to optimize /absolute/path/to/GEAK/examples/tasks/knn
-use /absolute/path/to/GEAK/kernel_workflow to optimize /path/to/silu, budget 8, focus on wrapper overhead
+
+```bash
+GEAK_CODEX_MODEL=gpt-5.6-sol node interface/codex_workflow_runner.mjs \
+  --script kernel_workflow/kernel_workflow.js --args-file kernel-args.json
 ```
 
 Director → TechLead → specialist engineers, multi-round and budget-controlled, each patch independently
 verified. Output: `kernel_workflow/exp/team_<kernel>_<timestamp>/`.
 
-**Batch:** run multiple kernels in parallel by launching one non-interactive Claude Code process per
+**Batch:** run multiple kernels in parallel by launching one compatibility runner per
 kernel. GPU access is serialized internally using `kernel_workflow/scripts/gpu_lock.sh`, so all
 processes can safely share the same GPUs.
 
@@ -69,18 +79,21 @@ GEAK=/absolute/path/to/GEAK
 GPU_IDS="0,1,2,3"
 
 for KERNEL in /path/to/kernel_a /path/to/kernel_b /path/to/kernel_c; do
-  IS_SANDBOX=1 claude -p \
-    "use $GEAK/kernel_workflow to optimize $KERNEL, gpu_ids $GPU_IDS" \
-    --dangerously-skip-permissions \
-    > "$KERNEL/claude.log" 2>&1 &
+  ARGS="$KERNEL/geak-args.json"
+  python -c 'import json,sys; json.dump({"kernel_path":sys.argv[1],
+    "workflow_dir":sys.argv[3]+"/kernel_workflow","mode":"optimize",
+    "budget":8,"gpu_ids":sys.argv[4]},open(sys.argv[2],"w"))' \
+    "$KERNEL" "$ARGS" "$GEAK" "$GPU_IDS"
+  node "$GEAK/interface/codex_workflow_runner.mjs" \
+    --script "$GEAK/kernel_workflow/kernel_workflow.js" \
+    --args-file "$ARGS" > "$KERNEL/codex.log" 2>&1 &
 done
 
 wait
 ```
 
 Each process writes its output to a per-kernel log. The `kernel_workflow` creates its experiment
-directory under `kernel_workflow/exp/team_<kernel>_<timestamp>/`. The `-p` flag runs Claude Code
-non-interactively (print mode); the process exits when the workflow completes.
+directory under `kernel_workflow/exp/team_<kernel>_<timestamp>/`. Each process exits when its workflow completes.
 
 ## Depth modes (e2e)
 

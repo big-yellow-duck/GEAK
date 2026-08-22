@@ -9,6 +9,15 @@ myst:
 
 This topic summarizes the features available in each GEAK release. For the hardware and software versions validated for a release, see the [Compatibility matrix](compatibility.md).
 
+## Unreleased
+
+- Added a portable Codex CLI compatibility runtime for the existing JavaScript workflows, including
+  nested workflows, parallel/pipeline execution, structured results, and bounded agent concurrency.
+- Added `GEAK_AGENT_BACKEND=auto|codex|claude`; local bootstrap defaults to Codex while legacy Claude
+  API, gateway, SDK, and CLI paths remain available.
+- Added authenticated Codex setup for container CI and documented ChatGPT subscription login via
+  `codex login`. GEAK does not copy or print Codex credentials.
+
 ## GEAK 4.0.0
 
 GEAK 4.0.0 is a major redesign of GEAK, upgrading it from a single-kernel optimization agent into an end-to-end GPU performance optimization system for AMD Instinct™ GPUs.
@@ -77,4 +86,3 @@ GEAK 4.0.0 adds a structured perf_knowledge layer for AMD GPU optimization. It o
 - Better alignment between kernel optimization and real serving workloads.
 - Improved long-run optimization support for multi-kernel and multi-backend exploration.
 - Stronger artifact discipline: each run writes structured reports, patches, overlays, and per-stage outputs.
-

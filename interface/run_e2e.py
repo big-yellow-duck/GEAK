@@ -10,15 +10,13 @@ Contract (stable, see interface/run_e2e.md):
 * Maps the stable handoff fields onto ``e2e_workflow/e2e_workflow.js``
   args (this mapping is the ONLY thing that changes when the JS workflow's args
   evolve; the handoff/result JSON contract stays put).
-* Invokes the JS workflow through the Claude Code ``Workflow`` tool (the JS
-  workflow CANNOT be run with ``node`` directly — it needs the agent runtime's
-  Workflow/agent/parallel/phase primitives, which are only exposed under
-  ``--effort ultracode``). Prefers the Python ``claude_agent_sdk``; falls back
-  to the ``claude -p`` CLI.
+* Invokes the unchanged JS workflow through either the portable Codex runtime
+  (which supplies agent/workflow/parallel/pipeline/phase/log on top of
+  ``codex exec``) or Claude Code's native ``Workflow`` runtime.
 * Normalizes the workflow artifacts (``director_e2e_validation.json`` +
   ``baseline/bench_summary.json`` + ``final/``) into the stable ``result.json``.
 
-All Claude-SDK / ``--effort`` / args-mapping detail lives HERE, inside this
+All harness/model/auth-boundary and args-mapping detail lives HERE, inside this
 repo, so the external caller only deals with two JSON files + one command
 path. See interface/run_e2e.md for the full contract.
 """
@@ -92,6 +90,14 @@ GEAK_ROOT = INTERFACE_DIR.parent
 E2E_DIR = GEAK_ROOT / "e2e_workflow"
 E2E_SCRIPT = E2E_DIR / "e2e_workflow.js"
 BENCH_SCRIPT = E2E_DIR / "scripts" / "bench_e2e.sh"
+CODEX_WORKFLOW_RUNNER = INTERFACE_DIR / "codex_workflow_runner.mjs"
+
+# Agent harness selection. ``auto`` prefers Codex when both the authenticated
+# CLI and a JavaScript runtime are present, otherwise it preserves the existing
+# Claude path. Pin ``GEAK_AGENT_BACKEND=codex|claude`` for reproducible CI.
+AGENT_BACKEND = os.environ.get("GEAK_AGENT_BACKEND", "auto").strip().lower()
+CODEX_BIN = os.environ.get("GEAK_CODEX_BIN", "").strip()
+CODEX_NODE_BIN = os.environ.get("GEAK_CODEX_NODE_BIN", "").strip()
 
 # Workflow primitives are only available at this effort tier (see README).
 CLAUDE_EFFORT = os.environ.get("GEAK_CLAUDE_EFFORT", "ultracode")
@@ -1581,8 +1587,133 @@ def _invoke_via_cli(prompt: str, timeout_s: int) -> str:
     return out
 
 
+def _resolve_agent_backend() -> str:
+    """Resolve the configured harness without probing credentials or the network."""
+    if AGENT_BACKEND not in {"auto", "claude", "codex"}:
+        raise ValueError(
+            f"unknown GEAK_AGENT_BACKEND={AGENT_BACKEND!r}; use auto, codex, or claude"
+        )
+    if AGENT_BACKEND != "auto":
+        return AGENT_BACKEND
+    codex = CODEX_BIN or shutil.which("codex")
+    node = CODEX_NODE_BIN or shutil.which("node") or shutil.which("nodejs")
+    return "codex" if codex and node and CODEX_WORKFLOW_RUNNER.is_file() else "claude"
+
+
+def _invoke_via_codex(ps_args: dict, timeout_s: int) -> str:
+    """Evaluate the unchanged GEAK JS workflow through the Codex CLI runtime.
+
+    The compatibility runner implements Claude Workflow's injected primitives
+    (agent/workflow/parallel/pipeline/phase/log) and maps each agent call to
+    ``codex exec``. It uses ``--output-schema`` when the workflow schema can be
+    represented by Codex's strict schema subset, with JSON-only prompting for
+    genuine arbitrary-key maps. Authentication remains owned by Codex, so an
+    existing ``codex login`` session is inherited without copying tokens.
+    """
+    node = CODEX_NODE_BIN or shutil.which("node") or shutil.which("nodejs")
+    codex = CODEX_BIN or shutil.which("codex")
+    if not node:
+        raise RuntimeError(
+            "Codex backend requires Node.js to evaluate GEAK workflow files; "
+            "install Node.js 18+ or set GEAK_CODEX_NODE_BIN"
+        )
+    if not codex:
+        raise RuntimeError(
+            "Codex backend selected but 'codex' is not on PATH; install Codex CLI "
+            "or set GEAK_CODEX_BIN, then run 'codex login'"
+        )
+    if not CODEX_WORKFLOW_RUNNER.is_file():
+        raise RuntimeError(f"missing Codex workflow runner: {CODEX_WORKFLOW_RUNNER}")
+
+    args_file = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", suffix=".json", delete=False
+        ) as fh:
+            json.dump(ps_args, fh)
+            args_file = fh.name
+        env = dict(os.environ)
+        # Pass resolved paths explicitly. This also supports the standalone
+        # binary bundled by IDE installations, which may not be on PATH inside
+        # a dispatched container even though the parent can resolve it.
+        env["GEAK_CODEX_BIN"] = codex
+        env.setdefault("GEAK_CODEX_CWD", str(GEAK_ROOT))
+        proc = subprocess.Popen(
+            [
+                node,
+                str(CODEX_WORKFLOW_RUNNER),
+                "--script",
+                str(E2E_SCRIPT),
+                "--args-file",
+                args_file,
+            ],
+            cwd=str(GEAK_ROOT),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout_s)
+        except subprocess.TimeoutExpired as exc:
+            # The Node runner owns many concurrent codex exec descendants.
+            # Terminate only the process group we created so no orphan agents
+            # keep editing/benchmarking after the external budget expires.
+            os.killpg(proc.pid, signal.SIGTERM)
+            try:
+                proc.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.communicate()
+            raise TimeoutError(
+                f"Codex workflow exceeded the {timeout_s}s budget"
+            ) from exc
+    finally:
+        if args_file:
+            try:
+                os.unlink(args_file)
+            except OSError:
+                pass
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"codex workflow failed (rc={proc.returncode}): {stderr[-4000:]}"
+        )
+    return stdout.strip()
+
+
+def _mapped_args_from_prompt(prompt: str) -> dict | None:
+    """Recover the one-line mapped args emitted by :func:`build_prompt`.
+
+    Keeping this extraction at the harness boundary preserves the long-standing
+    three-argument ``invoke_workflow`` contract used by external wrappers and
+    tests while allowing Codex to bypass the redundant top-level driver agent.
+    """
+    for line in (prompt or "").splitlines():
+        if not line.startswith("  args: "):
+            continue
+        try:
+            value = json.loads(line[len("  args: ") :])
+        except json.JSONDecodeError:
+            return None
+        return value if isinstance(value, dict) else None
+    return None
+
+
 def invoke_workflow(prompt: str, timeout_s: int, eval_dir: str | None = None) -> dict:
-    """Run the JS workflow and return its parsed JSON return value."""
+    """Run the JS workflow through Codex or Claude and return its JSON value."""
+    backend = _resolve_agent_backend()
+    if backend == "codex":
+        ps_args = _mapped_args_from_prompt(prompt)
+        if ps_args is None:
+            if AGENT_BACKEND == "codex":
+                raise ValueError("Codex workflow invocation requires mapped args in the prompt")
+            # Backward compatibility for callers that use invoke_workflow with
+            # an arbitrary Claude prompt rather than build_prompt().
+            backend = "claude"
+        else:
+            raw = _invoke_via_codex(ps_args, timeout_s)
+            return _parse_last_json_line(raw)
     try:
         import claude_agent_sdk  # noqa: F401
         raw = _invoke_via_sdk(prompt, timeout_s, eval_dir)

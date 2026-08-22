@@ -63,6 +63,12 @@ permissions:
   contents: read
 
 env:
+  # Harness selection. Existing CI stays on Claude unless the repository
+  # variable opts into Codex and the self-hosted runner has an authenticated
+  # CODEX_HOME available for the container mount.
+  GEAK_AGENT_BACKEND: ${{ vars.GEAK_AGENT_BACKEND || 'claude' }}
+  GEAK_CODEX_MODEL: ${{ vars.GEAK_CODEX_MODEL || 'gpt-5.6-sol' }}
+  GEAK_CODEX_REASONING_EFFORT: ${{ vars.GEAK_CODEX_REASONING_EFFORT || 'high' }}
   # Per-model GEAK optimization budget in seconds -> PERFSKILLS_E2E_TIMEOUT_S, which
   # is GEAK's REAL optimization wall-clock limit (run_geak_e2e.sh runs the e2e runner
   # with `--timeout-s "$PERFSKILLS_E2E_TIMEOUT_S"`). It ALSO sizes the SPUR -t wall
@@ -83,8 +89,8 @@ env:
   # Per-model_key weights catalog (<model_key> -> weights dir/symlink), inside the
   # workspace (built by quick_setup.sh). lib.sh derives the same path from $WS if omitted.
   HF_MODELS_DIR: ${{ vars.GEAK_CI_PATH }}/geak_ci_workspace/hf_models
-  # Claude auth for the in-container worker; propagated to the SPUR job via
-  # sbatch --export=ALL. Falls back to ci/preflight/claude_setup.sh defaults if absent.
+  # Legacy Claude auth for the in-container worker; ignored by the Codex backend.
+  # Propagated to the SPUR job via sbatch --export=ALL.
   LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
   LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
   # Agent model served by the LiteLLM proxy, read by ci/preflight/claude_setup.sh and

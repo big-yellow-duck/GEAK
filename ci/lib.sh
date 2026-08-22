@@ -17,6 +17,7 @@ WS="${WS:-$(dirname "$GEAK_ROOT")}"                              # <ws>
 INFERENCEX_PATH="${INFERENCEX_PATH:-$WS/InferenceX}"
 HF_LOGS="${HF_LOGS:-$WS/geak_runtime}"
 CLAUDE_SETUP="${CLAUDE_SETUP:-$CI_DIR/preflight/claude_setup.sh}"
+AGENT_SETUP="${AGENT_SETUP:-$CI_DIR/preflight/setup_agent.sh}"
 MODELS_TSV="${MODELS_TSV:-$CI_DIR/models.tsv}"
 # Repo-tracked image map. Presets live in ci/docker_setup/*.json; the default is
 # ci/docker_setup/docker_default.json. Override with DOCKER_DEFAULT=<path> (the CI

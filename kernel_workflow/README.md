@@ -156,6 +156,7 @@ not secondary. The brief is a prior, never a cage: profile/per-case data and mea
 **Web tools:** the research agents need `WebSearch`/`WebFetch`. They are on the e2e allowlist
 (`interface/run_e2e.py` `ALLOWED_TOOLS`). For a standalone `claude -p` invocation of this workflow
 with `dra_enabled`, pass them on the allowlist too (`--allowed-tools Workflow,Bash,Read,Write,WebSearch,WebFetch`).
+The Codex backend uses Codex's own web capability and needs no Claude allowlist flag.
 With `dra_enabled` off (the default) nothing opts into the web tools and behavior is unchanged.
 
 ### Bake-off mode (NEW) — one kernel, many backend languages, keep the fastest

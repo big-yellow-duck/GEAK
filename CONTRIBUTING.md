@@ -150,13 +150,14 @@ Approximate what L0 CI runs (GPU-free) locally before you push:
 # Lint (advisory today; keep touched files clean)
 ruff check .
 
-# The stdlib-only unit tests L0 runs (no GPU / no claude_agent_sdk)
+# The CPU-only unit tests L0 runs (no GPU or live agent)
 python -m pytest -q \
   interface/test_run_e2e_recovery.py \
   e2e_workflow/scripts/tests/test_workload_alignment.py
 
 # Node regression + handoff->args mapping (also run by L0)
 node e2e_workflow/scripts/test_expert_skills_off_identical.js
+node --test interface/test_codex_workflow_runner.mjs
 python interface/run_e2e.py ci/fixtures/handoff.dry.json /tmp/l0_result.json --dry-run
 ```
 
@@ -177,8 +178,8 @@ Runs on GitHub-hosted runners — no GPU, no dataset, no secrets
 (`.github/workflows/ci-l0-checks.yml`):
 
 1. **Lint** — `ruff check .` (advisory today; surfaces findings without blocking while the tree is cleaned up).
-2. **Python unit tests** — stdlib-only tests (`interface/test_run_e2e_recovery.py`, `e2e_workflow/scripts/tests/test_workload_alignment.py`); no GPU / no `claude_agent_sdk`.
-3. **Node regression** — proves the `use_expert_skills=OFF` path injects nothing (byte-identical).
+2. **Python unit tests** — CPU-only tests; no GPU or live agent.
+3. **Node regressions** — validate workflow invariants and the Codex compatibility primitives.
 4. **Dry-run mapping** — validates the `handoff.json → e2e_workflow.js` arg mapping against `ci/fixtures/handoff.dry.json`.
 
 ### L1 — SPUR e2e (label-gated + manual dispatch)

@@ -107,10 +107,10 @@ my-org-my-model	my-org/my-model	verify
 # From the repo root. See the exact sbatch commands without submitting:
 ci/dispatch/run_matrix.sh <model_key> --print
 
-# Host-only wiring check (no docker/GPU/Claude):
+# Host-only wiring check (no docker/GPU/agent):
 SPUR_DRYRUN=1 ci/node/run_local.sh <model_key> --dry-run
 
-# Infra-only probe (real SPUR/docker/GPU/weights + Claude, stops before the e2e):
+# Infra-only probe (real SPUR/docker/GPU/weights + selected agent, stops before e2e):
 ci/dispatch/run_matrix.sh probe        # runs the probe tier over locally-weighted models
 ```
 A model only joins the `probe`/auto-run sets once its weights are present locally

@@ -12,16 +12,22 @@ GEAK v4's public surface is not a CLI or a Python package. It is: the Workflow s
 external-orchestrator contract (`interface/run_e2e.py`). For walkthroughs see
 [Run a workflow](../how-to/run-agent.md).
 
-## The `Workflow` tool
+## Workflow invocation
 
-Claude Code runs a workflow by calling:
+Codex runs a workflow through the portable compatibility runtime:
+
+```bash
+node interface/codex_workflow_runner.mjs --script <absolute-path.js> --args-file args.json
+```
+
+Claude Code compatibility uses its native call:
 
 ```js
 Workflow({ scriptPath: "<absolute path to *.js>", args: { /* see below */ } })
 ```
 
-`workflow_dir` is always required (a JS workflow can't read its own path). Natural-language prompts
-are mapped onto `args`; there is no config file for workflow parameters.
+`workflow_dir` is always required (a JS workflow cannot read its own path). The Codex args file is a
+JSON object; Claude may map a natural-language prompt onto the same object.
 
 | Workflow | scriptPath | Purpose |
 |---|---|---|
@@ -268,9 +274,11 @@ Stable `handoff.json` fields: `model_path`, `framework` (→ `backend`), `tp`, `
 `workload{isl, osl, conc}`, `accepted_flags` / `env`, `exp_root`, `bench_client`, `bench_protocol`,
 `inferencex_path`, `raw_baseline_tput`, `orchestrator_best_tput_same_config`.
 
-Env knobs: `GEAK_CLAUDE_MODEL` (`claude-opus-4-8`), `GEAK_CLAUDE_EFFORT` (`ultracode`),
-`GEAK_E2E_TIMEOUT_S` (`43200` = 12h), `GEAK_FINAL_RESERVE_S`, `GEAK_ROOT`,
-`GEAK_EVAL_DIR`, `INFERENCEX_PATH`.
+Harness knobs: `GEAK_AGENT_BACKEND=auto|codex|claude`; Codex uses `GEAK_CODEX_MODEL`,
+`GEAK_CODEX_REASONING_EFFORT`, `GEAK_CODEX_CONCURRENCY`, `GEAK_CODEX_BIN`, and
+`GEAK_CODEX_NODE_BIN`. Claude compatibility uses `GEAK_CLAUDE_MODEL`, `GEAK_CLAUDE_EFFORT`,
+and `GEAK_CLAUDE_BIN`. Shared knobs include `GEAK_E2E_TIMEOUT_S`, `GEAK_FINAL_RESERVE_S`,
+`GEAK_ROOT`, `GEAK_EVAL_DIR`, and `INFERENCEX_PATH`.
 
 `--timeout-s <seconds>` states the same wall-clock budget on the command line. When it and
 `GEAK_E2E_TIMEOUT_S` are both given the **smaller** wins (both name a real kill); `43200` applies only

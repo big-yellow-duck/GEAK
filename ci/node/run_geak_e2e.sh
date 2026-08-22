@@ -13,7 +13,7 @@
 #         neither is stated. (The flag used to be discarded into an ignored positional: Hyperloom #1202.)
 #       - PERFSKILLS_ROOT is derived from run_e2e.py's own location (interface/..), so calling the
 #         real path is enough; it maps the handoff onto e2e_workflow/e2e_workflow.js and drives it
-#         via the Claude SDK (model claude-opus-4-8, effort ultracode).
+#         through GEAK_AGENT_BACKEND (Codex compatibility runtime or legacy Claude SDK).
 #
 # Usage:   ./run_geak_e2e.sh <model_dir> [--dry-run]
 #   <model_dir> is one of the per-model folders here (contains handoff.json [+ baseline_config...]).
@@ -27,11 +27,13 @@
 #   INFERENCEX_PATH           InferenceX checkout  -> bench_client=inferencex (else geak falls back to native)
 #   BENCH_LAUNCHER            server launcher: native (default, CI baseline) | magpie (recipe parity)
 #   OUT_DIR                   where result.json is written (default <model_dir>/repro_out)
-#   PERFSKILLS_CLAUDE_MODEL / PERFSKILLS_CLAUDE_EFFORT / PERFSKILLS_CLAUDE_BIN  (defaults match run_e2e.py)
+#   GEAK_AGENT_BACKEND         codex | claude (CI default comes from ci/config.sh)
+#   GEAK_CODEX_MODEL / GEAK_CODEX_REASONING_EFFORT                            (Codex backend)
+#   PERFSKILLS_CLAUDE_MODEL / PERFSKILLS_CLAUDE_EFFORT / PERFSKILLS_CLAUDE_BIN (Claude backend)
 #
 # HARD external deps for a REAL (non --dry-run) run:
-#   * Claude credentials in the environment (ANTHROPIC_API_KEY / CURSOR_API_KEY / `claude` login) —
-#     geak IS a Claude-SDK workflow; without creds the workflow cannot run.
+#   * Credentials for the selected harness: an inherited `codex login` session,
+#     or Claude API/gateway/login credentials for the legacy backend.
 #   * A GPU box with the framework (vllm/sglang) + the actual model weights at handoff.model_path.
 #   * (optional) InferenceX checkout for byte-identical bench client vs Hyperloom.
 # =============================================================================
@@ -171,7 +173,10 @@ PY
 # GEAK_E2E_TIMEOUT_S, which this name has never matched). ----
 export PERFSKILLS_E2E_TIMEOUT_S   # value/default from ci/config.sh
 
-# ---- Claude workflow knobs (defaults already match run_e2e.py) ----
+# ---- Agent workflow knobs ----
+export GEAK_AGENT_BACKEND="${GEAK_AGENT_BACKEND:-claude}"
+export GEAK_CODEX_MODEL="${GEAK_CODEX_MODEL:-gpt-5.6-sol}"
+export GEAK_CODEX_REASONING_EFFORT="${GEAK_CODEX_REASONING_EFFORT:-high}"
 export PERFSKILLS_CLAUDE_MODEL="${PERFSKILLS_CLAUDE_MODEL:-claude-opus-4-8}"
 export PERFSKILLS_CLAUDE_EFFORT="${PERFSKILLS_CLAUDE_EFFORT:-ultracode}"
 
@@ -183,7 +188,11 @@ echo "   runner   = $RUNNER"
 echo "   handoff  = $HANDOFF"
 echo "   result   = $RESULT"
 echo "   budget   = PERFSKILLS_E2E_TIMEOUT_S=$PERFSKILLS_E2E_TIMEOUT_S s"
-echo "   claude   = $PERFSKILLS_CLAUDE_MODEL / effort=$PERFSKILLS_CLAUDE_EFFORT"
+if [ "$GEAK_AGENT_BACKEND" = codex ]; then
+  echo "   agent    = codex $GEAK_CODEX_MODEL / reasoning=$GEAK_CODEX_REASONING_EFFORT"
+else
+  echo "   agent    = claude $PERFSKILLS_CLAUDE_MODEL / effort=$PERFSKILLS_CLAUDE_EFFORT"
+fi
 echo "   bench_launcher = $BENCH_LAUNCHER"
 echo "   inferencex_path = ${INFERENCEX_PATH:-<unset -> native bench>}"
 echo "   dry_run  = ${DRY:-<no>}"

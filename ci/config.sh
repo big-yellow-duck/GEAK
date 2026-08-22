@@ -70,11 +70,11 @@ export GEAK_SKIP_DSTATE_CHECK="${GEAK_SKIP_DSTATE_CHECK:-0}"      # 1 = skip GPU
 #              banner. A long silent bench/build/profile still writes files and
 #              keeps GPU or CPU busy, so it is NEVER killed; if GPU util can't be
 #              measured it degrades to warn-only.
-#   * claude — LLM arbiter (needs the claude CLI): reads the log tail and votes.
+#   * claude/codex — LLM arbiter: reads the log tail and votes.
 # Default ON in stall mode (deterministic, no deps). Disable with GEAK_MONITOR=0;
-# claude mode additionally needs the CLI on the dispatched GPU host.
+# LLM modes additionally need the selected authenticated CLI on the host.
 export GEAK_MONITOR="${GEAK_MONITOR:-1}"                          # 1 = start host-side liveness monitor
-export GEAK_MONITOR_MODE="${GEAK_MONITOR_MODE:-stall}"           # stall (deterministic) | claude (LLM arbiter)
+export GEAK_MONITOR_MODE="${GEAK_MONITOR_MODE:-stall}"           # stall | claude | codex
 # GEAK_HARD_TIMEOUT_S: leave UNSET to auto-derive (budget + headroom - kill buffer);
 # set it to force an explicit hard-timeout instead.
 
@@ -86,9 +86,16 @@ export GEAK_MONITOR_INTERVAL_S="${GEAK_MONITOR_INTERVAL_S:-300}"       # normal 
 export GEAK_MONITOR_RECHECK_S="${GEAK_MONITOR_RECHECK_S:-300}"         # re-poll gap while confirming a KILL (must span a normal between-phase idle gap, not just a blip)
 export GEAK_MONITOR_CONFIRM="${GEAK_MONITOR_CONFIRM:-2}"               # consecutive KILL votes required to act
 export GEAK_MONITOR_TAIL_LINES="${GEAK_MONITOR_TAIL_LINES:-300}"       # log tail lines fed to the arbiter
-export GEAK_MONITOR_CALL_TIMEOUT_S="${GEAK_MONITOR_CALL_TIMEOUT_S:-180}" # cap a single claude call (claude mode)
+export GEAK_MONITOR_CALL_TIMEOUT_S="${GEAK_MONITOR_CALL_TIMEOUT_S:-180}" # cap a single agent call
 export GEAK_MONITOR_STARTUP_GRACE_S="${GEAK_MONITOR_STARTUP_GRACE_S:-300}" # grace before the first judgement
-export GEAK_MONITOR_MODEL="${GEAK_MONITOR_MODEL:-claude-opus-4-8}"     # arbiter model (claude mode)
+export GEAK_MONITOR_MODEL="${GEAK_MONITOR_MODEL:-claude-opus-4-8}"     # arbiter model
+
+# Agent harness. CI remains Claude by default for backward compatibility with
+# the existing LiteLLM secret, while local installs default to Codex. Set these
+# in Actions/dispatch to use a mounted authenticated Codex CLI session.
+export GEAK_AGENT_BACKEND="${GEAK_AGENT_BACKEND:-claude}"         # claude | codex
+export GEAK_CODEX_MODEL="${GEAK_CODEX_MODEL:-gpt-5.6-sol}"
+export GEAK_CODEX_REASONING_EFFORT="${GEAK_CODEX_REASONING_EFFORT:-high}"
 # ---- Deterministic stall watchdog (run_monitor.sh MODE=stall) ---------------
 # A wedge is declared ONLY when NO artifact under OUT_DIR has been written AND both
 # GPU and CPU are idle for GEAK_STALL_KILL_S, confirmed GEAK_MONITOR_CONFIRM times.
