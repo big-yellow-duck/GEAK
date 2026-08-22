@@ -3,12 +3,15 @@ title: dense_gemm on FlyDSL — SOTA card
 kind: sota_card
 operator: dense_gemm
 backend: flydsl
-gens: [gfx942, gfx950]
-dtypes: [bf16, fp8_e4m3_fnuz, fp4_e2m1, mxfp4]
+gens: [gfx942, gfx950, gfx1200, gfx1201]
+dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, fp4_e2m1, mxfp4]
 regimes: [prefill, decode]
 status: sota
 updated: 2026-06-08
 sources:
+  - https://github.com/ROCm/FlyDSL
+  - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
+  - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_kernels.py
   - ROCm/aiter@a6bb4993:aiter/tuned_gemm.py
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
@@ -16,12 +19,15 @@ sources:
 
 # dense_gemm × FlyDSL
 
+> RDNA4 uses standalone FlyDSL main's gfx120x wave32/WMMA path. Do not use the AITER integration
+> described in older sections of this card: GEAK disables AITER on RDNA4. Start from upstream
+> `kernels/gemm/rdna_f16_gemm.py`, use direct `flydsl` imports, and verify `v_wmma*` in generated ISA.
+
 ## TL;DR
-FlyDSL is aiter's **Python kernel DSL with instruction-level control** — the productivity middle ground
-between Triton (too opaque for peak) and raw asm (too slow to iterate). It's the authoring backend AMD used
-to beat the stock fused-MoE path on Kimi-K2.5, and aiter's FusedMoE uses FlyDSL for mixed precision (A4W4).
-**When FlyDSL is absent, aiter silently falls back to CK** — so verify `is_flydsl_available()`. Deploy is
-the same env path as [[operators/dense_gemm/backends/aiter]] (a tuned CSV row with `libtype=flydsl`).
+FlyDSL is AMD's independent **Python/MLIR kernel DSL with instruction-level control** — the productivity
+middle ground between Triton and raw assembly. On RDNA4, use upstream FlyDSL directly; its main branch
+contains native gfx120x wave32/WMMA kernels and does not require AITER. On CDNA, AITER may optionally host
+FlyDSL kernels and dispatch them through its tuned database. Keep those two integration modes separate.
 
 ## SOTA implementation
 FlyDSL is reached only through the aiter dispatcher, and only when installed. From
@@ -77,23 +83,45 @@ rounds CK's arbitrary fp32 block scale → parity fail (representational, not tu
 to pick + XCD / scheduling levers) is the gated expert skill `flydsl_fp8_blockscale_gemm`.
 
 ## Integration (rebind seam)
-Reached through `aiter.tuned_gemm`: a CSV row with `libtype=flydsl` + a `kernelName` that
-`get_flydsl_splitk_hgemm_kernel_params` resolves AND `is_flydsl_available()` true. Deploy = same env path as
-the dense aiter card (`AITER_CONFIG_GEMM_BF16=<csv>`). No standalone env-overlay for FlyDSL by itself.
+
+**RDNA4 (`gfx1200`/`gfx1201`)**: import `flydsl` directly and start from upstream
+`kernels/gemm/rdna_f16_gemm.py`. Let runtime detection choose the target or pin
+`FLYDSL_GPU_ARCH=gfx1201`; compile/JIT in a subprocess, validate against the frozen oracle, inspect the ISA
+for `v_wmma*`, and bind the validated callable directly at the extracted kernel seam. Do not import AITER
+or deploy an AITER CSV.
+
+**CDNA (`gfx942`/`gfx950`)**: an optional integration is reached through `aiter.tuned_gemm`: a CSV row
+with `libtype=flydsl` plus a `kernelName` that `get_flydsl_splitk_hgemm_kernel_params` resolves and
+`is_flydsl_available()` true. This is CDNA integration guidance, not a requirement of FlyDSL itself.
 
 ## Pitfalls & anti-patterns
-- **FlyDSL is optional**; if not installed, aiter silently uses CK (correct, slower for low-bit/MoE) — always
-  verify `is_flydsl_available()` before trusting flydsl CSV rows.
+- **Do not test standalone FlyDSL by importing `aiter.ops.flydsl`.** That only tests AITER's wrapper. On
+  RDNA4 probe `import flydsl` and compile a native gfx120x example in an isolated subprocess.
+- **CDNA AITER integration only:** if FlyDSL is not installed, AITER silently uses CK; verify
+  `is_flydsl_available()` before trusting a CDNA `libtype=flydsl` CSV row.
 - A flydsl row whose `kernelName` isn't decodable returns `None` → the dispatcher falls through to the next
   `padded_M` granularity / default, so a typo in the CSV silently disables the row.
-- Instruction-level control = many more knobs than Triton; do **not** hand-tune — rely on aiter's per-shape
-  DB / gradlib autotune to fill `kernelName`.
+- Instruction-level control means more knobs than Triton. On RDNA4 start with upstream's native tile and
+  tune a bounded grid against the frozen shape suite; never invoke AITER/gradlib. On CDNA, the AITER DB is
+  an optional search/dispatch integration.
 - hgemm path can't take scales — passing `scale_a/scale_b` raises an assert; use the quant FlyDSL/MoE path.
 - **fp8 block-scale ≠ native scaled-MFMA.** Porting CK `gemm_a8w8_blockscale` onto the E8M0 block-scaled
   MFMA fails parity (power-of-two rounding of an arbitrary fp32 scale). Pick a software-fp32-post-MFMA core;
   detail [../numerics.md](../numerics.md), recipe = gated expert skill `flydsl_fp8_blockscale_gemm`.
 
 ## How to verify (worked example)
+
+RDNA4 direct path:
+
+```bash
+FLYDSL_GPU_ARCH=gfx1201 python -c "import flydsl; print(flydsl.__file__)"
+# Then run the upstream rdna_f16_gemm correctness/benchmark entry point in a subprocess,
+# compare every frozen case against the oracle, and inspect emitted ISA for v_wmma*.
+# Import success alone is not enough: reject a wheel whose authoring API cannot compile that main kernel.
+```
+
+CDNA AITER-hosted path only:
+
 ```bash
 python -c "from aiter.ops.flydsl.utils import is_flydsl_available; print(is_flydsl_available())"
 # isolated bench of one tuned kernelName vs hipBLASLt on the same (M,N,K)

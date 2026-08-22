@@ -18,8 +18,13 @@ sources:
 
 # dense_gemm × aiter
 
+> **RDNA4 policy: unavailable.** This card is deliberately indexed only for `gfx942`/`gfx950`.
+> On `gfx1200`/`gfx1201`, do not import AITER, run gradlib, deploy `AITER_CONFIG_*`, or use
+> `aiter.ops.flydsl`; select direct HIP, Triton, rocWMMA, or standalone FlyDSL instead.
+
 ## TL;DR
-On sglang/vllm, **aiter is the live dense-GEMM path** (`aiter.tuned_gemm:gemm_a16w16` → dispatches per
+On the supported CDNA sglang/vllm configurations, **aiter is the live dense-GEMM path**
+(`aiter.tuned_gemm:gemm_a16w16` → dispatches per
 shape to hipBLASLt `Cijk_*` / asm / skinny / triton / flydsl from a tuned CSV DB). To improve dense GEMM
 you tune **aiter's per-shape DB**: capture real shapes (`AITER_TUNE_GEMM=1`), tune with gradlib, deploy by
 env (`AITER_CONFIG_GEMM_BF16`). This is the **only** GEMM lever that actually engages the serving path —

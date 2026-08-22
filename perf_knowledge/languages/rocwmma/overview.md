@@ -1,7 +1,7 @@
 ---
-title: rocWMMA — WMMA-style C++ Matrix-Core fragment API on CDNA
+title: rocWMMA — C++ Matrix-Core fragment API on CDNA and RDNA
 kind: language
-gens: [gfx908, gfx90a, gfx942, gfx950]
+gens: [gfx908, gfx90a, gfx942, gfx950, gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e5m2_fnuz, fp8_e4m3, int8, fp32]
 regimes: [both]
 status: competitive
@@ -30,13 +30,22 @@ production GEMM. Min ROCm 6.4; header at `/opt/rocm/include/rocwmma/rocwmma.hpp`
   issues the right `v_mfma_*`, `store_matrix_sync` gathers back.
 - **No element locality.** Vector elements inside a fragment have *no guaranteed order or locality* —
   never index `frag.x[i]` assuming a row/col; only do *elementwise* math (alpha/beta scaling, activation).
-- **Wave-cooperative.** `mma_sync`/`load`/`store` are warp-synchronous: all **64 lanes** of the wavefront
-  (WaveSize = 64 on CDNA) execute them together. With LDS source/dest you may need an explicit
+- **Wave-cooperative.** `mma_sync`/`load`/`store` are warp-synchronous: all lanes of the target wave
+  execute them together—64 on CDNA, native 32 on RDNA4. With LDS source/dest you may need an explicit
   `synchronize_workgroup()` between produce and consume.
 - **fp32 accumulate always.** On CDNA the matrix unit accumulates in 32-bit and converts to the output
   type — so for bf16/fp8 inputs the `accumulator` fragment is `float` even if you store bf16.
-- **Maps 1:1 to MFMA.** `fragment<...,16,16,16,bf16>` + `mma_sync` lowers to `v_mfma_f32_16x16x16_bf16`;
-  `<32,32,8>` lowers to `v_mfma_f32_32x32x8_*`. Verify with `ROCm/amd_matrix_instruction_calculator`.
+- **Maps to the target matrix core.** On CDNA this is `v_mfma_*`; on gfx120x it is wave32 `v_wmma_*`
+  with the gfx12 fragment ABI. Verify the generated ISA rather than assuming one mapping.
+
+## RDNA4 notes
+
+- gfx1200/gfx1201 use wave32 WMMA and a 16x16x16 FP16/BF16→FP32 base shape.
+- RDNA4's v8 operand-register ABI differs from gfx11's duplicated/v16 layout. Never hand-pack an
+  RDNA3 fragment for gfx120x.
+- Query `rocwmma::Constants::AMDGCN_WAVE_SIZE` / `getWarpSize()`; do not hard-code 64.
+- Use the RDNA4 resource model from `kernel_workflow/knowledge/amd_rdna4.md`: WGP/CU-pair scheduling,
+  128 KiB LDS per WGP with the runtime per-workgroup limit, and GDDR/Infinity Cache rather than HBM/XCD.
 
 ## The levers
 - **Fragment tile shape** — `16×16×16` (default) vs `32×32×8`. Prefer **16×16** on MI300X: the same

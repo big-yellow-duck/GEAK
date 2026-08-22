@@ -38,7 +38,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GPU_LOCK="$SCRIPT_DIR/gpu_lock.sh"
 
 WARMUP_RUNS="${WARMUP_RUNS:-3}"
-PROFILER_PRIORITY="${PROFILER_PRIORITY:-rocprof-compute omniperf rocprofv3 rocprof metrix}"
+# rocprof-compute's compatibility matrix does not currently list discrete
+# gfx1200/gfx1201. rocprofv3/rocprofiler-sdk does support gfx12 tracing, so use
+# it first on RDNA4. Callers can still override the complete order.
+_PROFILE_GFX="$(rocminfo 2>/dev/null | grep -m1 -oE 'gfx[0-9a-f]+' || true)"
+case "$_PROFILE_GFX" in
+    gfx120*) _DEFAULT_PROFILER_PRIORITY="rocprofv3 rocprof rocprof-compute omniperf metrix" ;;
+    *)       _DEFAULT_PROFILER_PRIORITY="rocprof-compute omniperf rocprofv3 rocprof metrix" ;;
+esac
+PROFILER_PRIORITY="${PROFILER_PRIORITY:-$_DEFAULT_PROFILER_PRIORITY}"
 RPC_PROFILE_ARGS="${RPC_PROFILE_ARGS:---no-roof}"
 RPV3_TRACE_ARGS="${RPV3_TRACE_ARGS:---kernel-trace --stats --output-format csv}"
 RPROF_ARGS="${RPROF_ARGS:---stats}"

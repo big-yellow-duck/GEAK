@@ -54,6 +54,12 @@ sources, available op backends, and the model's arch class; degrades gracefully 
 Every accepted change compounds into the carried-forward overlay + config; throughput is always
 measured warm, repeated, median, vs the TRUE baseline.
 
+On RDNA4 gfx1200/gfx1201, preflight records wave32/WGP/WMMA/GDDR hardware facts, marks AITER
+policy-disabled without importing it, and probes standalone upstream FlyDSL. Config/head-kernel routing
+is limited to direct FlyDSL, HIP, Triton, and the incumbent; CK is not auto-selected. The kernel layer is
+fully architecture-aware, while end-to-end execution additionally requires the chosen vLLM/SGLang build
+and model footprint to work on the Radeon card.
+
 ## Pluggable serving backend
 The serving stack is NOT baked in. `args.backend` (sglang|vllm, default sglang) selects
 `scripts/adapters/<backend>.sh`, which `scripts/bench_e2e.sh` (a backend-agnostic dispatcher: owns

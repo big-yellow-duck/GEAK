@@ -2,6 +2,10 @@
 
 Patterns ranked by priority. Higher priority (P0) = higher expected impact.
 
+Run `scripts/detect_gpu_arch.sh` first. Read `amd_rdna4.md` for gfx120x and
+`amd_instinct.md` for CDNA. Triton's AMD `num_warps` follows the compiled target:
+wave32/WMMA on RDNA4 versus wave64/MFMA on CDNA.
+
 ## P0: Algorithm & Tiling Design
 
 ### Tiling Strategy
@@ -9,7 +13,7 @@ Triton kernels are fundamentally block-based. The tiling scheme determines perfo
 
 **Key decisions:**
 - Choose block dimensions that maximize data reuse
-- Ensure BLOCK_SIZE is a multiple of 64 (AMD wavefront size)
+- Start with BLOCK_SIZE multiples of 64 for portability; also test 32 for naturally tiny RDNA4 work
 - Balance tile size vs register pressure vs shared memory usage
 
 ```python
@@ -54,7 +58,7 @@ def matmul_kernel(
     for k in range(0, K, BLOCK_K):
         a = tl.load(A_ptr + ...)  # BLOCK_M x BLOCK_K tile
         b = tl.load(B_ptr + ...)  # BLOCK_K x BLOCK_N tile
-        acc += tl.dot(a, b)       # Maps to MFMA on AMD
+        acc += tl.dot(a, b)       # Matrix-core lowering: MFMA on CDNA, WMMA on RDNA4
     tl.store(C_ptr + ..., acc)
 ```
 
@@ -76,7 +80,7 @@ offsets = tl.arange(0, BLOCK) * stride  # Non-contiguous
 ```
 
 ### Block Size Selection
-- Minimum: 64 (one wavefront on AMD)
+- Minimum useful full-wave tile: 32 on RDNA4, 64 on CDNA
 - Sweet spots: 64, 128, 256, 512, 1024
 - Larger blocks = more data reuse but more register pressure
 
@@ -102,8 +106,9 @@ def kernel(N, BLOCK: tl.constexpr, NUM_STAGES: tl.constexpr):
         ...
 ```
 
-### Dot Product → MFMA
-On AMD, `tl.dot` maps to MFMA (Matrix Fused Multiply-Add) instructions. Use it for matrix operations.
+### Dot Product → Matrix Core
+On AMD, `tl.dot` can map to MFMA on CDNA or WMMA on RDNA4. Use it for matrix operations and inspect
+the generated ISA to prove the intended lowering.
 
 - Input types: fp16, bf16, fp32, int8
 - Minimum sizes: typically 16x16 tiles
@@ -114,7 +119,7 @@ Load in fp16/bf16, compute in fp32 for bandwidth savings with precision.
 
 ```python
 x = tl.load(ptr + offsets).to(tl.float16)  # Load as fp16
-acc += tl.dot(x, y)  # Compute in fp32 via MFMA
+acc += tl.dot(x, y)  # Compute in fp32 via the target's matrix core
 ```
 
 ## P3: AMD-Specific Optimizations
@@ -132,19 +137,20 @@ Control occupancy via the `waves_per_eu` parameter in `@triton.autotune`.
 )
 ```
 
-### 64-Wide Wavefronts
-AMD uses 64-thread wavefronts (not 32). This affects:
-- `num_warps`: each "warp" in Triton is actually a 64-thread wavefront on AMD
-- Reduction tree depth: one fewer level than NVIDIA
-- Memory coalescing width: 64 threads * 4 bytes = 256 bytes per access
+### Target wave size
+- CDNA gfx942/gfx950 uses wave64: four-byte contiguous lanes cover 256 bytes.
+- RDNA4 gfx120x uses native wave32: four-byte contiguous lanes cover 128 bytes.
+- `num_warps`, reduction depth, register pressure, and threads/program therefore change across families.
 
-### MFMA Tile Sizes
-Match `BLOCK_M/N/K` to the hardware MFMA tile shapes for best utilization (detect the arch with
+### Matrix-core tile sizes
+Match `BLOCK_M/N/K` to the target matrix instruction shapes (detect the arch with
 `rocminfo`):
 - **gfx942 (CDNA3)**: 4x4x4, 16x16x16, 32x32x8 (plus 16x16x32 / 32x32x16 for 8-bit). Prefer
   `matrix_instr_nonkdim=16`.
 - **gfx950 (CDNA4)**: adds new/wider MFMA variants and native MXFP4/MXFP6/MXFP8 (block-scaled) matrix
   ops not present on gfx942 — a major low-precision GEMM lever. See `amd_instinct.md` §3.
+- **gfx1200/gfx1201 (RDNA4)**: wave32 WMMA, with a base 16x16x16 FP16/BF16→FP32 operation and a
+  gfx12-specific fragment ABI. Do not use `matrix_instr_nonkdim` or MFMA assumptions; see `amd_rdna4.md`.
 
 ## P4: Autotune Configurations
 
@@ -174,10 +180,10 @@ Choose autotune keys that capture shape-dependent behavior. Include dimensions t
 ## Compound Strategy Compatibility
 
 Compose well:
-- Tiling + MFMA dot → excellent (standard matmul pattern)
+- Tiling + target matrix-core dot → excellent (standard matmul pattern)
 - Fused ops + Coalesced loading → excellent
 - Autotune + Multiple tile sizes → excellent (let runtime decide)
-- Mixed precision + MFMA → excellent (higher MFMA throughput)
+- Mixed precision + matrix core → excellent when ISA inspection proves native lowering
 
 Conflicts:
 - Very large tiles + High num_warps → register pressure

@@ -55,15 +55,19 @@ Steps:
      flags in `EVAL_DIR/config/baseline_flags.json`.
 4. **Preflight + pin the environment** — follow `SKILL_DIR/knowledge/preflight.md` (judgment guide,
    not a script). Confirm the chosen `BACKEND` stack imports/launches, `MODEL` resolves, the GPU(s)
-   are visible; detect gfx, trace sources (rocprofv3?), available op backends (aiter / flydsl via
-   `aiter.ops.flydsl.is_flydsl_available()` — NOT `import flydsl` / ckProfiler /
-   hipblaslt-bench?), and the model's **arch class** from its `config.json`.    Degrade gracefully
+   are visible; detect gfx + GPU architecture class + CU count + wave size, trace sources, available
+   op backends, and the model's **arch class** from its `config.json`. Record both physical CU count and,
+   on RDNA4, WGP count—do not label PyTorch's R9700 `multi_processor_count=32` as 32 physical CUs.
+   On RDNA4, follow preflight's
+   mandatory policy: never import AITER, mark it policy-disabled, and probe standalone FlyDSL directly.
+   Import + `is_rdna_arch` proves target recognition only; availability requires an isolated compile/run
+   of main's gfx120x kernel because released wheels can lag the main-branch authoring API. Degrade gracefully
    (a missing OPTIONAL tool → record a limitation, don't abort); hard-stop ONLY on a true blocker
    (no MODEL / stack / GPU) with an actionable remedy. Write `EVAL_DIR/env_report.{md,json}`
    (downstream phases read it). **For every OPTIONAL backend that is NOT available, also write an
    `absent_backends[<name>] = {probe, remedy, mandated_by}` entry** with an ACTIONABLE provisioning hint
-   (per `preflight.md` — e.g. flydsl needs BOTH `pip install 'flydsl>=0.1.5'` AND a flydsl-enabled
-   `amd_aiter` build that ships `aiter/ops/flydsl/`; pip flydsl alone is insufficient). This is what lets
+   (per `preflight.md`; on RDNA4 FlyDSL is the standalone package and must never require or probe an
+   AITER-hosted wrapper). This is what lets
    the Op Benchmarker gate its author lanes and the report surface a missing lever instead of silently
    dropping it. Also add a reproducibility note in `EVAL_DIR/env_info.txt`:
    ```bash
@@ -107,6 +111,11 @@ Return JSON:
 {
   "eval_dir": "<EVAL_DIR>",
   "model_name": "<name>",
+  "gfx": "gfx942|gfx950|gfx1200|gfx1201|...",
+  "gpu_arch_class": "cdna3|cdna4|rdna4|unknown",
+  "gpu_cu_count": 64,
+  "gpu_wgp_count": 32,
+  "gpu_wave_size": 32,
   "baseline_throughput_tok_s": 0.0,
   "baseline_spread_pct": 0.0,
   "noise_band_pct": 0.5,

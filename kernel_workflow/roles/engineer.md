@@ -23,12 +23,17 @@ work in your OWN private workspace copy — total isolation, no coordination wit
 
 ## Load only the knowledge for your specialty (keeps context focused)
 - algorithm  → `hip_optimization.md` (P0/P1) or `triton_optimization.md`, + `geomean_levers.md`
-- memory     → `hip_optimization.md` (P1/P2) or `triton_optimization.md`, + `amd_instinct.md`
-- compute    → `hip_optimization.md` (P3/P4) + `amd_instinct.md` (detect the card; occupancy/VGPR table)
+- memory     → `hip_optimization.md` (P1/P2) or `triton_optimization.md`, + the detected hardware card
+- compute    → `hip_optimization.md` (P3/P4) + the detected hardware card
 - host_runtime → `wrapper_optimization.md` + `geomean_levers.md` (dispatch collapse, native layout,
   allocation, CUDA graph). You MAY edit the Python wrapper AND the C++ binding, not just the kernel.
 
 Always also read `SKILL_DIR/knowledge/self_monitoring.md` and follow its guard signals.
+
+Select the hardware card before planning: run
+`eval "$(bash "$SKILL_DIR/scripts/detect_gpu_arch.sh")"`; read `amd_rdna4.md` for gfx1200/gfx1201,
+else `amd_instinct.md`. On RDNA4 use wave32/WGP/WMMA/GDDR reasoning. AITER and CDNA asm are out of
+scope; direct upstream FlyDSL is supported; CK is used only when the caller explicitly requested it.
 
 ## Operator/language SOTA knowledge (REFERENCE ONLY — optional, only if `KK_OPERATOR` is set)
 When `KERNEL_KNOWLEDGE_DIR` is non-empty AND `KK_OPERATOR` is not null/empty, the kernel maps to an

@@ -45,8 +45,9 @@ Read ALL of these before and during your work, and re-consult as the bottleneck 
   layout, graph capture). Re-read every time you re-profile.
 - `SKILL_DIR/knowledge/hip_optimization.md` / `triton_optimization.md` — per the kernel's language.
 - `SKILL_DIR/knowledge/wrapper_optimization.md` — host/runtime patterns (you own these too).
-- `SKILL_DIR/knowledge/amd_instinct.md` — DETECT the actual card (gfx942/gfx950) first, then use its
-  peaks for the roofline estimate (below).
+- Run `scripts/detect_gpu_arch.sh`, then read `amd_rdna4.md` for gfx1200/gfx1201 or
+  `amd_instinct.md` for CDNA. RDNA4 means wave32/WGP/WMMA/GDDR, direct FlyDSL supported,
+  AITER unavailable, and CK explicit opt-in only.
 - `SKILL_DIR/knowledge/profiling_guide.md` — how to read whatever profiler is available.
 - `SKILL_DIR/knowledge/self_monitoring.md` — the guard signals (you raise the step caps, see below).
 
@@ -69,14 +70,15 @@ flydsl→`flydsl`, tilelang→`tilelang`; read `overview.md`/`patterns.md`/`knob
 
 ## Roofline targeting (how to know how far you really are)
 Your target may be expressed as "% of roofline". Estimate the ceiling, then drive toward it:
-0. **Detect the card first** (`amd_instinct.md` §0: `rocminfo` → gfx arch + CU count, `rocm-smi` → name)
-   and use ITS peaks below — never assume MI300X (gfx950/CDNA4 is much higher and uses OCP fp8 + MX).
+0. **Detect the card first** with `scripts/detect_gpu_arch.sh`, `rocminfo` (CU count), and `rocm-smi`.
+   Use the selected hardware card. For RDNA4 derive roofs from same-box GDDR and WMMA microbenchmarks;
+   never substitute MI HBM/MFMA peaks.
 1. From the profile / per-case table, decide whether each case is **memory-bound** or **compute-bound**.
-2. **Memory-bound ceiling**: `min_time ≈ bytes_moved / HBM_BW` — use this card's achievable HBM
-   bandwidth (~0.7–0.85× nameplate; e.g. ≈5.3 TB/s on MI300X, ~6 on MI325X, ~8 on MI350/355; see
-   `amd_instinct.md`). Achieved % = that min_time / your measured time.
-3. **Compute-bound ceiling**: `min_time ≈ FLOPs / peak_FLOPS` for the dtype (use the MFMA peak for the
-   precision on THIS card from `amd_instinct.md`). Achieved % similarly.
+2. **Memory-bound ceiling**: `min_time ≈ bytes_moved / achievable_memory_BW` — use this card's achievable HBM
+   bandwidth (for CDNA, the card-specific achievable HBM rate; for RDNA4, a same-box GDDR streaming
+   measurement from `amd_rdna4.md`). Achieved % = that min_time / your measured time.
+3. **Compute-bound ceiling**: `min_time ≈ FLOPs / peak_FLOPS` for the dtype (MFMA on CDNA; measured
+   WMMA floor on RDNA4). Achieved % similarly.
 4. Report the achieved % per representative case in your notes. If you are far below the ceiling, the
    kernel still has headroom — keep going. If you are near it, the remaining wall-clock is likely the
    launch/host floor → switch to `geomean_levers.md` Levers 1–3/6 (dispatch collapse, native layout,

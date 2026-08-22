@@ -43,14 +43,15 @@ candidates:
       - ROCm/aiter@a6bb4993:csrc/ck_gemm_a8w8/gemm_a8w8.cu
   - operator: dense_gemm
     backend: flydsl
-    gens: [gfx942, gfx950]
-    dtypes: [bf16, fp8_e4m3_fnuz, fp4_e2m1, mxfp4]
+    gens: [gfx942, gfx950, gfx1200, gfx1201]
+    dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, fp4_e2m1, mxfp4]
     regimes: [prefill, decode]
     card: ../operators/dense_gemm/backends/flydsl.md
     sources:
+      - https://github.com/ROCm/FlyDSL
+      - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
+      - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
       - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_kernels.py
-      - ROCm/aiter@a6bb4993:aiter/tuned_gemm.py
-      - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
   - operator: dense_gemm
     backend: gluon
     gens: [gfx950]
@@ -62,6 +63,16 @@ candidates:
       - https://github.com/ROCm/gfx950-gluon-tutorials
       - https://rocm.blogs.amd.com/software-tools-optimization/cdna4-gemm-kernels/README.html
       - https://rocm.blogs.amd.com/software-tools-optimization/4wave-fp8gemm/README.html
+  - operator: dense_gemm
+    backend: hip
+    gens: [gfx1200, gfx1201]
+    dtypes: [bf16, fp16, fp8_e4m3]
+    regimes: [prefill, decode]
+    card: ../operators/dense_gemm/backends/hip.md
+    sources:
+      - https://gpuopen.com/learn/using_matrix_core_amd_rdna4/
+      - https://www.amd.com/content/dam/amd/en/documents/radeon-tech-docs/instruction-set-architectures/rdna4-instruction-set-architecture.pdf
+      - https://rocm.docs.amd.com/projects/rocWMMA/en/develop/supported-hardware.html
   - operator: dense_gemm
     backend: hipblaslt
     gens: [gfx908, gfx90a, gfx942, gfx950]
@@ -86,7 +97,7 @@ candidates:
       - https://github.com/HazyResearch/HipKittens
   - operator: dense_gemm
     backend: rocwmma
-    gens: [gfx942, gfx950]
+    gens: [gfx942, gfx950, gfx1200, gfx1201]
     dtypes: [bf16, fp16, fp8_e4m3_fnuz]
     regimes: [prefill, decode]
     card: ../operators/dense_gemm/backends/rocwmma.md
@@ -104,8 +115,8 @@ candidates:
       - https://rocm.docs.amd.com/en/latest/how-to/rocm-for-ai/inference-optimization/workload.html
   - operator: dense_gemm
     backend: triton
-    gens: [gfx90a, gfx942, gfx950]
-    dtypes: [bf16, fp16, fp8_e4m3_fnuz]
+    gens: [gfx90a, gfx942, gfx950, gfx1200, gfx1201]
+    dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3]
     regimes: [prefill, decode]
     card: ../operators/dense_gemm/backends/triton.md
     sources:

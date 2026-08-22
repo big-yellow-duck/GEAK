@@ -1,5 +1,20 @@
 # Profiling Analysis Guide
 
+## Architecture routing before profiling
+
+Run `eval "$(bash "$SKILL_DIR/scripts/detect_gpu_arch.sh")"` first.
+
+- CDNA gfx942/gfx950: prefer `rocprof-compute → omniperf → rocprofv3 → rocprof` and interpret
+  wave64/MFMA/HBM counters with `amd_instinct.md`.
+- RDNA4 gfx1200/gfx1201: prefer `rocprofv3 → rocprof → rocprof-compute/omniperf` and interpret
+  wave32/WGP/WMMA/GDDR behavior with `amd_rdna4.md`. rocprof-compute's published compatibility table
+  does not currently list discrete gfx120x, so absence of its SoL tables is expected, not a kernel
+  failure. Never substitute MI MFMA/HBM/XCD counters or peaks.
+
+The wrapper selects this order automatically. A trace-only result is still useful for dispatch count,
+kernel duration, and launch-floor analysis; use compiler resource remarks, ISA, and same-box bandwidth/
+WMMA microbenchmarks for missing roofline evidence, and label confidence accordingly.
+
 ## Reading the raw profiler dump (START HERE — the script does NOT parse for you)
 
 `scripts/profile_kernel.sh` is intentionally thin: it warms up, picks the best available profiler, runs
@@ -42,7 +57,10 @@ When you see that block, **do not just accept the degraded result** — work thi
    tool and why (e.g. "rocprofv3 rejected `--output-format`; fell back to rocprof --stats"). Never let a
    degrade pass unrecorded.
 
-Priority / degrade order: `rocprof-compute → omniperf → rocprofv3 → rocprof → benchmark-only`.
+Priority / degrade order is architecture-specific: CDNA uses
+`rocprof-compute → omniperf → rocprofv3 → rocprof → benchmark-only`; RDNA4 uses
+`rocprofv3 → rocprof → rocprof-compute → omniperf → benchmark-only` because published rich-counter
+support does not currently include discrete gfx120x.
 Override env vars (defaults in `profile_kernel.sh`): `PROFILER_PRIORITY`, `WARMUP_RUNS`,
 `RPC_PROFILE_ARGS` (rocprof-compute/omniperf `profile`), `RPV3_TRACE_ARGS` (rocprofv3), `RPROF_ARGS`
 (legacy rocprof).
@@ -99,7 +117,7 @@ The most important section. Shows overall utilization as percentage of peak.
 | MFMA Utilization | Matrix unit usage | > 40% = MFMA-active workload |
 | VMEM Utilization | Vector memory pipe | > 60% = memory-bound |
 | LDS Utilization | Local data share | > 50% = LDS-heavy |
-| Bandwidth (GB/s) | Effective HBM BW | Compare to this card's HBM peak (≈5300 GB/s MI300X/300A, ~6000 MI325X, ~8000 MI350/355 — see `amd_instinct.md`) |
+| Bandwidth (GB/s) | Effective device-memory BW | CDNA: compare with the selected card's achievable HBM rate. RDNA4: compare with a same-box GDDR streaming measurement; never use MI peaks. |
 
 **Classification from SoL:**
 - VALU > 60% AND VMEM < 40% → **compute-bound**
@@ -191,7 +209,7 @@ diagnosis forward; and recognize that an autotuner sweeping tiles is implicitly 
 |--------|--------------|
 | Read BW | HBM read bandwidth achieved |
 | Write BW | HBM write bandwidth achieved |
-| Total BW | Should be < this card's HBM peak (≈5300 GB/s MI300X; higher on MI325X/MI350/MI355 — `amd_instinct.md`) |
+| Total BW | Compare with the selected hardware card's achievable device-memory rate (HBM on CDNA; measured GDDR on RDNA4) |
 
 ## Bottleneck Classification Decision Tree
 

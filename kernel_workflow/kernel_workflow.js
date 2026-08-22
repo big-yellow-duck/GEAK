@@ -1,6 +1,6 @@
 export const meta = {
   name: 'kernel-workflow',
-  description: 'Single ENTRY POINT for kernel optimization on AMD Instinct MI-series GPUs (CDNA gfx942/gfx950, auto-detected on-box). Dispatches on args.mode: optimize/author -> delegate one unchanged single-language lane to the kernel_lane worker (backward compatible); bakeoff -> freeze the input kernel into ONE immutable oracle + frozen baseline, discover per-language existing impls + offline-tune env backends (aiter/CK), then run one worker lane per backend language (HIP/Triton/FlyDSL/CK/...) in parallel over the GPU pool and pick the fastest verified result across ALL candidates (author/optimize lanes AND the tuned env backend) — every one scored against the SAME frozen original baseline (anti-cheating). Wraps the unchanged kernel_lane worker (one workflow() nesting level; the dispatcher is the bake-off orchestrator).',
+  description: 'Single ENTRY POINT for kernel optimization on AMD GPUs: CDNA gfx942/gfx950 and RDNA4 gfx1200/gfx1201, auto-detected on-box. Dispatches on args.mode: optimize/author -> delegate one unchanged single-language lane to the kernel_lane worker; bakeoff -> freeze one immutable oracle + baseline, discover architecture-safe backend languages, then run one worker lane per language in parallel and pick the fastest independently verified result. RDNA4 defaults to direct HIP/Triton/FlyDSL, never AITER; CK is explicit opt-in only.',
   whenToUse: 'Optimize a kernel. Three modes, all via args.mode (there is NO natural-language mode detection — the caller picks): mode=optimize (DEFAULT) speeds up an EXISTING kernel and behaves exactly like the old single-language workflow; mode=author writes a fresh implementation from scratch, then optimizes it — use it when there is no source to edit yet, or to port the op to another language (pass args.target_language); mode=bakeoff tries several backend languages in parallel and keeps the fastest (pass args.backends, or leave empty to auto-discover — leaving it empty also lets Discover decide per-language whether to optimize an existing impl or author a new one). Anything else throws. Pass args.kernel_path (required), args.workflow_dir (required), args.mode, args.target_language, args.backends, args.budget, args.gpu_ids, args.gpu_mode (pool|pin, default pool).',
   phases: [
     { title: 'Freeze',   detail: 'oracle_freezer: freeze the input kernel -> immutable oracle + baseline_src/ (the ONE denominator) [bakeoff only]' },
@@ -90,6 +90,10 @@ const FREEZE_SCHEMA = obj({
   op_kind: { type: 'string' },             // gemm|attn|elementwise|moe|other
   task_dir: { type: 'string' },            // the immutable op task dir (unittest.py + meta.json + baseline_src/)
   live_backend: { type: 'string' },        // the input kernel's language, e.g. "hip"
+  gfx: { type: 'string' },                 // detected LLVM target, e.g. gfx1201
+  arch_class: { type: 'string' },          // cdna3|cdna4|rdna4|unknown
+  cu_count: { type: 'number' },
+  wgp_count: { type: 'number' },           // RDNA scheduler units; normally physical CUs / 2
   candidate_backends: arrStr,
   baseline_frozen: { type: 'boolean' },
   baseline_callable: { type: 'string' },
@@ -244,7 +248,37 @@ if (!oracle || !says(oracle.smoke, 'pass') || !oracle.task_dir || oracle.baselin
     reason: oracle ? oracle.notes || 'freeze smoke did not pass' : 'oracle_freezer returned nothing' };
 }
 const EVAL_DIR = oracle.eval_dir || `${EXP_ROOT}/bakeoff_${KERNEL_NAME_HINT}`;
-log(`Freeze done. op_kind=${oracle.op_kind}, task_dir=${oracle.task_dir}, live_backend=${oracle.live_backend || '?'}`);
+const DETECTED_GFX = String(oracle.gfx ||
+  ((String(oracle.notes || '').match(/gfx[0-9a-f]+/i) || [''])[0])).toLowerCase();
+const ARCH_CLASS = String(oracle.arch_class ||
+  (/^gfx120/.test(DETECTED_GFX) ? 'rdna4' :
+   DETECTED_GFX === 'gfx942' ? 'cdna3' : /^gfx95/.test(DETECTED_GFX) ? 'cdna4' : 'unknown')).toLowerCase();
+const IS_RDNA4 = ARCH_CLASS === 'rdna4';
+log(`Freeze done. op_kind=${oracle.op_kind}, task_dir=${oracle.task_dir}, live_backend=${oracle.live_backend || '?'}, ` +
+    `device=${DETECTED_GFX || '?'} (${ARCH_CLASS})${oracle.cu_count ? `, ${oracle.cu_count} CU` : ''}`);
+
+// RDNA4 backend contract: direct FlyDSL is supported by upstream's native
+// gfx120x wave32/WMMA path. AITER is deliberately unavailable (including its
+// env tuner and AITER-hosted FlyDSL wrappers). CK is not auto-discovered because
+// installed serving stacks commonly contain CDNA-shaped instances; a caller may
+// request CK explicitly and it will still have to pass the isolated oracle.
+const rdna4BackendAllowed = (lang, explicitlyRequested) => {
+  const l = String(lang || '').toLowerCase();
+  if (l === 'aiter' || l === 'asm' || l === 'asm_mfma') return false;
+  if (l === 'ck' || l === 'ck_tile') return !!explicitlyRequested;
+  return ['hip', 'triton', 'flydsl', 'other'].includes(l);
+};
+const requestedBackends = IS_RDNA4
+  ? BACKENDS.filter(l => rdna4BackendAllowed(l, true))
+  : BACKENDS;
+if (IS_RDNA4 && requestedBackends.length !== BACKENDS.length) {
+  log(`RDNA4: dropped unsupported backend request(s): ${BACKENDS.filter(l => !requestedBackends.includes(l)).join(', ')}. ` +
+      'AITER and CDNA assembly are unavailable; use direct FlyDSL/HIP/Triton.');
+}
+const discoveredBackends = IS_RDNA4
+  ? (oracle.candidate_backends || []).filter(l => rdna4BackendAllowed(l, false))
+  : (oracle.candidate_backends || []);
+const candidateBackends = requestedBackends.length ? requestedBackends : discoveredBackends;
 
 // ===========================================================================
 // PHASE: Discover — per-language existing-impl probe + measure + author_plan +
@@ -258,9 +292,19 @@ log(`Freeze done. op_kind=${oracle.op_kind}, task_dir=${oracle.task_dir}, live_b
 // engagement probes) are skipped.
 // ===========================================================================
 phase('Discover');
-const DISCOVER_INTRO =
+const RDNA4_DISCOVER = IS_RDNA4 ?
+  'RDNA4 POLICY (mandatory): target is gfx1200/gfx1201 wave32/WMMA. AITER is UNAVAILABLE: do not import ' +
+  'aiter, run gradlib/AITER/CK offline tuning, deploy AITER_CONFIG_* files, or use aiter.ops.flydsl. ' +
+  'FlyDSL itself IS supported: use the independent upstream flydsl package and its gfx120x path directly. ' +
+  'Do not accept import-only detection: release wheels can lag main, so compile/run the native candidate ' +
+  'in an isolated subprocess and reject version/API mismatches without killing other lanes. ' +
+  'Default candidates are direct FlyDSL, Triton, HIP, plus the incumbent. CK appears only when explicitly ' +
+  'requested and must be crash-isolated. Set tuned_speedup=0 and return no AITER/CK env winner.\n' : '';
+const DISCOVER_INTRO = RDNA4_DISCOVER +
   'STANDALONE kernel bake-off — there is NO live server (do not try to launch or capture from one).\n' +
   '(1) Tier-A DISCOVER: bench every candidate backend on the immutable oracle in OP_TASK_DIR.\n' +
+  (IS_RDNA4 ?
+  '(2) Tier-B environment tuning is OUT OF SCOPE on RDNA4; tune source-level direct FlyDSL/Triton/HIP candidates only.\n' :
   '(2) Tier-B TUNE is STILL IN SCOPE — run it OFFLINE, not from a server capture. The step`s "capture ' +
   'shapes from a warm server" instruction is replaced here: take the tune shapes DIRECTLY from ' +
   'OP_TASK_DIR/meta.json (the frozen oracle carries the real M/N/K, the `bias` flag, and dtype — so you ' +
@@ -268,7 +312,7 @@ const DISCOVER_INTRO =
   '(GEMM) / CK tuner as usual, deploy the tuned CSV (AITER_CONFIG_GEMM_BF16 / the CK env), then VERIFY ' +
   'engagement AND measure speed in the ISOLATED unittest/op_bench with AITER_LOG_TUNED_CONFIG=1 (look for ' +
   '"is tuned on cu_num" in THIS process`s output — NOT server.log). Return the best tuned backend as a ' +
-  'winner_kind=env candidate with apply_env + tuning_artifact.\n' +
+  'winner_kind=env candidate with apply_env + tuning_artifact.\n') +
   '(3) Fill `baseline_ms` = the FROZEN input kernel`s ms on the oracle (baseline_src/ / meta.baseline_callable), ' +
   'and `tuned_speedup` = baseline_ms / (best tuned backend ms) — i.e. the tuned env win measured against ' +
   'the SAME frozen baseline the author lanes use, so it is directly comparable. If no tuned backend beats ' +
@@ -284,7 +328,9 @@ const DISCOVER_INTRO =
 const bake = await agentT(
   roleAgentFrom(E2E_WF_DIR, 'op_benchmarker', 'bakeoff', DISCOVER_INTRO, {
     EVAL_DIR, OP_TASK_DIR: oracle.task_dir, OP_KIND: oracle.op_kind,
-    CANDIDATE_BACKENDS: (BACKENDS.length ? BACKENDS : (oracle.candidate_backends || [])),
+    CANDIDATE_BACKENDS: candidateBackends,
+    GPU_GFX: DETECTED_GFX, GPU_ARCH_CLASS: ARCH_CLASS, GPU_CU_COUNT: oracle.cu_count || 0,
+    GPU_WGP_COUNT: oracle.wgp_count || 0,
     GPU_ID: GPU_LIST[0], ENABLE_FP8, LIVE_SERVER: 'false',
     KERNEL_WF_DIR: WORKFLOW_DIR, KERNEL_BUDGET: BUDGET, SKILL_DIR: E2E_WF_DIR,
   }),
@@ -330,8 +376,11 @@ const want = (lang, mode) => {
   wanted.push({ lang, mode });
 };
 want(liveLang, 'optimize');
-if (BACKENDS.length) BACKENDS.forEach(l => want(l, l === liveLang ? 'optimize' : (planByLang[l] || 'author')));
-else (bake.author_plan || []).forEach(a => want(langOf(a), modeOf(a)));
+if (requestedBackends.length) requestedBackends.forEach(l => want(l, l === liveLang ? 'optimize' : (planByLang[l] || 'author')));
+else (bake.author_plan || []).forEach(a => {
+  const lang = langOf(a);
+  if (!IS_RDNA4 || rdna4BackendAllowed(lang, false)) want(lang, modeOf(a));
+});
 // Lane dir/log key: plain language when that language has a single lane, `<lang>_<mode>` when it has two.
 const laneCount = {};
 wanted.forEach(w => { laneCount[w.lang] = (laneCount[w.lang] || 0) + 1; });
@@ -398,7 +447,10 @@ const cands = results.map(x => ({
   eval_dir: x.r ? x.r.eval_dir : '', patch: x.r ? x.r.final_patch : '', apply_env: '', tuning_artifact: '',
 }));
 // (b) tuned env backend candidate (only if it beat the frozen baseline)
-const tunedSpeedup = Number(bake.tuned_speedup);
+// Defense in depth: the RDNA4 discover prompt forbids AITER/CK env tuning, but
+// an agent-produced field is not a policy boundary. Make it impossible for an
+// env/AITER candidate to enter the ranking on gfx120x.
+const tunedSpeedup = IS_RDNA4 ? 0 : Number(bake.tuned_speedup);
 if (Number.isFinite(tunedSpeedup) && tunedSpeedup > 1.0 && bake.winner_backend && bake.winner_backend !== 'none') {
   cands.push({
     lang: bake.winner_backend, mode: 'env-tune', kind: 'env', speedup: tunedSpeedup,

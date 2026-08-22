@@ -9,6 +9,10 @@ kernel; that's the kernel squad's job. NOTE: `CONFIG_TUNE_ENABLED=false` disable
 config sweep — it does NOT forbid a backend-select switch (env/overlay) that a kernel head REQUIRES to
 engage its tuning artifact on the live seam; that switch is a kernel-engagement prerequisite carried in
 the kernel result (`apply_env`/`code_patch`), applied at integrate regardless of this flag.
+
+When `GPU_ARCH_CLASS=rdna4` or `GPU_GFX` is gfx1200/gfx1201, remove every AITER direction regardless
+of whether it was proposed or installed. Do not set `SGLANG_USE_AITER`, `VLLM_ROCM_USE_AITER`, any
+`AITER_CONFIG_*`, or select an AITER attention backend. CK is not an automatic RDNA4 candidate.
 After your wins, the profile is re-taken because you change
 which kernels dominate.
 

@@ -18,8 +18,13 @@ sources:
 
 # dense_gemm — tuning
 
+> **Architecture scope: CDNA only (`gfx942`/`gfx950`).** The AITER/MFMA/XCD recipes in this card must
+> not be selected for RDNA4. On `gfx1200`/`gfx1201`, use the direct HIP, Triton, rocWMMA, or standalone
+> FlyDSL backend cards; reason in wave32/WMMA/WGP terms and size the grid from the runtime CU count.
+
 ## TL;DR
-The only tuning lever that engages the **live** sglang/vllm GEMM path is **aiter's per-shape DB**
+For the CDNA serving stacks covered by this card, the tuning lever that engages the **live**
+sglang/vllm GEMM path is **aiter's per-shape DB**
 (see [backends/aiter.md](backends/aiter.md)); everything below is the knob space that aiter/CK/triton
 search over. Defaults worth burning into any hand kernel: **`mfma_16x16` over `32x32`**, **≥1024
 workgroups**, **8-multiple tiles** (XCD/L2 friendliness), `OPTIMIZE_EPILOGUE=1` to dodge the 512B Tagram hotspot.

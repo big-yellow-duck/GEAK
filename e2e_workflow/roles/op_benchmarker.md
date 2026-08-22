@@ -8,6 +8,14 @@ pick the fastest correct backend, tune that backend, and — only if the winner 
 op to the recursive `kernel_workflow` for code-level work. You never touch a server or measure e2e; the
 e2e Integrator turns your winner into an overlay/config and runs the Amdahl gate.
 
+## RDNA4 override (takes precedence over every AITER recipe below)
+
+When `GPU_ARCH_CLASS=rdna4` or `GPU_GFX` is gfx1200/gfx1201, do not import AITER, run gradlib/CK/AITER
+tuners, return an AITER/CK env winner, or use `aiter.ops.flydsl`. Those older sections are CDNA-only.
+Benchmark/author direct upstream FlyDSL, Triton, HIP, and the incumbent. FlyDSL main has a native
+gfx120x wave32/WMMA lowering and is independent of AITER. Return `tuned_speedup=0` for the disabled env
+tier; every optional probe must be subprocess-isolated.
+
 > **`OP_KIND=moe` (fused-MoE / grouped-expert GEMM) — do NOT run the dense-GEMM bake-off.** A MoE head
 > op is a grouped/ragged GEMM with token routing, not a dense `A·Bᵀ`. Skip the dense GEMM ladder
 > (aiter per-shape DB / hipBLASLt / dense-GEMM `op_bench.py`). Instead go straight to **author/optimize

@@ -1,6 +1,6 @@
 export const meta = {
   name: 'e2e-workflow',
-  description: 'End-to-end LLM inference-throughput optimizer for AMD Instinct MI-series GPUs (CDNA gfx942/gfx950, the target card is auto-detected on-box). The serving stack is pluggable via scripts/adapters/<backend>.sh (sglang + vllm shipped; pass args.backend). A system layer (e2e Director / System Architect / Profiler / Config Tuner / Kernel Extractor / e2e Integrator) wraps the UNCHANGED single-kernel kernel_workflow: it preflights the env, profiles a running server, triages hot kernels by Amdahl, tunes config/backends, extracts hot editable kernels into standalone unittests, recursively optimizes them with kernel_workflow.js, overlays them back, and re-validates serving throughput. Also still optimizes a single kernel (pass-through).',
+  description: 'End-to-end LLM inference-throughput optimizer for AMD CDNA gfx942/gfx950 and RDNA4 gfx1200/gfx1201 (target auto-detected). The serving stack is pluggable via adapters. On RDNA4 the system disables AITER/env tuning and routes extracted kernels through direct FlyDSL/HIP/Triton; actual e2e viability still depends on the selected serving stack and model fitting the card.',
   whenToUse: 'Optimize the serving throughput of an LLM on AMD Instinct MI GPUs. Pass args.model_path (required) + optional args.backend (sglang|vllm, default sglang) + args.launch_script (optional). For a single kernel, pass args.kernel_path instead and it delegates straight to the kernel layer.',
   phases: [
     { title: 'Setup', detail: 'e2e Director builds the isolated eval dir + records baseline throughput' },
@@ -477,6 +477,8 @@ const arrStr = { type: 'array', items: { type: 'string' } };
 
 const SETUP_SCHEMA = obj({
   eval_dir: { type: 'string' }, model_name: { type: 'string' },
+  gfx: { type: 'string' }, gpu_arch_class: { type: 'string' },
+  gpu_cu_count: { type: 'number' }, gpu_wgp_count: { type: 'number' }, gpu_wave_size: { type: 'number' },
   baseline_throughput_tok_s: { type: 'number' }, baseline_spread_pct: { type: 'number' },
   noise_band_pct: { type: 'number' }, baseline_summary_path: { type: 'string' },
   server_flags: { type: 'object', additionalProperties: true }, server_env: { type: 'string' },
@@ -1414,6 +1416,22 @@ if (!MODEL_PATH && KERNEL_PATH) {
 // PHASE: Setup + Baseline profile + Strategize  (gated; else load carried state)
 // ===========================================================================
 let EVAL_DIR, MODEL_NAME, BASELINE_TPUT, NOISE_BAND, curFlags, curEnv, profile, strategy, kernelQueue, headQueue;
+let GPU_GFX = '', GPU_ARCH_CLASS = 'unknown', GPU_CU_COUNT = 0, GPU_WGP_COUNT = 0, GPU_WAVE_SIZE = 0;
+const isRdna4 = () => GPU_ARCH_CLASS === 'rdna4' || /^gfx120/.test(GPU_GFX);
+const rdna4LanguageAllowed = (x) => ['hip', 'triton', 'flydsl', 'other'].includes(String(x || '').toLowerCase());
+const archSafeBackends = (xs) => isRdna4()
+  ? (xs || []).filter(rdna4LanguageAllowed)
+  : (xs || []);
+const enforceArchBake = (b) => {
+  if (!b || !isRdna4()) return b;
+  b.author_plan = (b.author_plan || []).filter(ap => rdna4LanguageAllowed(ap && ap.language));
+  // AITER/CK env candidates are policy-disabled even if the agent returned one.
+  if (/aiter|ck/i.test(String(b.winner_backend || '')) || String(b.winner_kind || '') === 'env') {
+    b.isolated_speedup = 0; b.tuned_speedup = 0; b.winner_backend = 'none'; b.winner_kind = 'none';
+    b.apply_env = ''; b.tuning_artifact = '';
+  }
+  return b;
+};
 if (want('setup')) {
   phase('Setup');
   const setup = await safeAgent(
@@ -1427,6 +1445,11 @@ if (want('setup')) {
   MODEL_NAME = setup.model_name || MODEL_NAME_HINT;
   BASELINE_TPUT = setup.baseline_throughput_tok_s;
   NOISE_BAND = setup.noise_band_pct || NOISE_BAND_DEFAULT;
+  GPU_GFX = String(setup.gfx || '').toLowerCase();
+  GPU_ARCH_CLASS = String(setup.gpu_arch_class || (/^gfx120/.test(GPU_GFX) ? 'rdna4' : 'unknown')).toLowerCase();
+  GPU_CU_COUNT = Number(setup.gpu_cu_count) || 0;
+  GPU_WGP_COUNT = Number(setup.gpu_wgp_count) || (isRdna4() ? Math.ceil(GPU_CU_COUNT / 2) : 0);
+  GPU_WAVE_SIZE = Number(setup.gpu_wave_size) || (isRdna4() ? 32 : 0);
   // Seed flags/env win when provided (baseline was measured on them); else fall
   // back to whatever the director resolved.
   curFlags = INIT_FLAGS || (setup.server_flags && setup.server_flags.extra) || '';
@@ -1448,11 +1471,17 @@ if (want('setup')) {
     roleAgent('system_architect', 'strategize', 'Route the Top-N into config/kernel/host tracks by Amdahl.', {
       EVAL_DIR, PROFILE_TOPN: profile ? profile.profile_topN_json : '', BASELINE_THROUGHPUT: BASELINE_TPUT,
       WORKLOAD, BUDGET, HEAD_THRESHOLD_PCT, CONFIG_TUNE_ENABLED, SKILL_DIR: WORKFLOW_DIR,
+      GPU_GFX, GPU_ARCH_CLASS, GPU_CU_COUNT, GPU_WGP_COUNT, GPU_WAVE_SIZE,
       ...TRACELENS_INPUTS, ...ANALYSIS_SKILL_INPUTS,
     }),
     { phase: 'Strategize', label: 'architect:strategize', schema: STRATEGY_SCHEMA });
   kernelQueue = (strategy && strategy.kernel_candidates) ? strategy.kernel_candidates.slice() : [];
   headQueue = (strategy && strategy.head_candidates) ? strategy.head_candidates.slice() : [];
+  if (isRdna4()) {
+    strategy.config_directions = (strategy.config_directions || []).filter(d => !/aiter/i.test(JSON.stringify(d)));
+    for (const c of [...kernelQueue, ...headQueue]) c.candidate_backends = archSafeBackends(c.candidate_backends || []);
+    log('[rdna4] e2e policy: AITER/env tuning disabled; direct FlyDSL/HIP/Triton only; CK not auto-selected.');
+  }
   // OP-IDENTITY GUARD — a fused-MoE / grouped-expert GEMM must be optimized AS the fused op at its live
   // dispatcher seam, never decomposed into standalone dense GEMMs (a dense candidate has no live call site
   // → no_rebind_seam). So force op_kind='moe' (the grouped-GEMM branch; gemmSynthFor keys on this to keep
@@ -1483,6 +1512,11 @@ if (want('setup')) {
   curFlags = ST.flags || '';
   curEnv = ST.env || '';
   profile = { profile_topN_json: ST.profile_topn_json || '' };
+  GPU_GFX = String(ST.gfx || '').toLowerCase();
+  GPU_ARCH_CLASS = String(ST.gpu_arch_class || (/^gfx120/.test(GPU_GFX) ? 'rdna4' : 'unknown')).toLowerCase();
+  GPU_CU_COUNT = Number(ST.gpu_cu_count) || 0;
+  GPU_WGP_COUNT = Number(ST.gpu_wgp_count) || (isRdna4() ? Math.ceil(GPU_CU_COUNT / 2) : 0);
+  GPU_WAVE_SIZE = Number(ST.gpu_wave_size) || (isRdna4() ? 32 : 0);
   strategy = { config_directions: ST.config_directions || [] };
   kernelQueue = ST.kernelQueue || [];
   headQueue = admitHeads(ST.headQueue || [], 'resume');
@@ -1500,6 +1534,7 @@ if (want('config') && CONFIG_TUNE_ENABLED && strategy && (strategy.config_direct
       EVAL_DIR, MODEL_PATH, GPU_ID: GPU_LIST[0], WORKLOAD, BASELINE_THROUGHPUT: BASELINE_TPUT,
       NOISE_BAND_PCT: NOISE_BAND, E2E_REPEATS, CONFIG_DIRECTIONS: strategy.config_directions,
       CURRENT_FLAGS: curFlags, CURRENT_ENV: curEnv, SKILL_DIR: WORKFLOW_DIR,
+      GPU_GFX, GPU_ARCH_CLASS, GPU_CU_COUNT, GPU_WGP_COUNT, GPU_WAVE_SIZE,
     }),
     { phase: 'ConfigSweep', label: 'config_tuner:sweep', schema: SWEEP_SCHEMA });
   if (sweep && sweep.best_throughput_tok_s > curTput) {
@@ -1520,12 +1555,16 @@ if (want('config') && CONFIG_TUNE_ENABLED && strategy && (strategy.config_direct
       roleAgent('system_architect', 'strategize', 'Re-route after config changed the landscape.', {
         EVAL_DIR, PROFILE_TOPN: profile ? profile.profile_topN_json : '', BASELINE_THROUGHPUT: curTput,
         WORKLOAD, BUDGET, HEAD_THRESHOLD_PCT, CONFIG_TUNE_ENABLED: false, SKILL_DIR: WORKFLOW_DIR,
+        GPU_GFX, GPU_ARCH_CLASS, GPU_CU_COUNT, GPU_WGP_COUNT, GPU_WAVE_SIZE,
         ...ANALYSIS_SKILL_INPUTS,
       }),
       { phase: 'Strategize', label: 'architect:re-strategize', schema: STRATEGY_SCHEMA });
     if (restrat && restrat.kernel_candidates) kernelQueue = restrat.kernel_candidates.slice();
     if (restrat && restrat.head_candidates)
       headQueue = admitHeads(restrat.head_candidates.slice(), 're-strategize');
+    if (isRdna4()) {
+      for (const c of [...kernelQueue, ...headQueue]) c.candidate_backends = archSafeBackends(c.candidate_backends || []);
+    }
     // re-strategize may have (re)routed flydsl -> provision it (idempotent; no-op if already done).
     await ensureFlydslGate();
   } else {
@@ -1619,13 +1658,14 @@ if (want('head') && headQueue.length && HEAD_BUDGET > 0) {
         history.ledger.push({ direction: h.short_name, verdict: isDominant ? 'flagged' : 'dead_end', lesson: `op extraction failed (${why})` });
         return null;
       }
-      const bake = await safeAgent(
+      const bake = enforceArchBake(await safeAgent(
         roleAgent('op_benchmarker', 'bakeoff', 'DISCOVER existing impls, tune cheap levers, DECIDE author_plan.', {
           EVAL_DIR, OP_TASK_DIR: ext.task_dir, OP_KIND: ext.op_kind, PCT_GPU_TIME: h.pct_gpu_time,
-          CANDIDATE_BACKENDS: ext.candidate_backends || h.candidate_backends || [],
+          CANDIDATE_BACKENDS: archSafeBackends(ext.candidate_backends || h.candidate_backends || []),
+          GPU_GFX, GPU_ARCH_CLASS, GPU_CU_COUNT, GPU_WGP_COUNT, GPU_WAVE_SIZE,
           GPU_ID: GPU_LIST[0], ENABLE_FP8, KERNEL_WF_DIR, KERNEL_BUDGET: DEEP_WAVE_BUDGET, SKILL_DIR: WORKFLOW_DIR,
         }),
-        { phase: 'HeadKernel', label: `bakeoff ${h.short_name}`, schema: OPBENCH_SCHEMA });
+        { phase: 'HeadKernel', label: `bakeoff ${h.short_name}`, schema: OPBENCH_SCHEMA }));
       // Lane roster: ALWAYS tune the live editable kernel + author EVERY backend the bake-off proposes
       // (no backend dropped a priori — unbiased), then fill remaining diversity with distinct authoring
       // directions. Steers are DIRECTIONS (generic), never hard-coded magic numbers.
@@ -1646,12 +1686,13 @@ if (want('head') && headQueue.length && HEAD_BUDGET > 0) {
         for (const l of otherLangs) lanesSpec.push({ key: l, lang: l, mode: (planLangs.find(x => x.lang === l) || {}).mode || 'author',
           steer: ` AUTHOR a ${l} implementation that beats the LIVE kernel (not just your own first port); read SHARED_KB + GLOBAL_KB and borrow the winning decomposition other lanes/kernels found.` });
         const extra = [
-          { key: `${liveLang}-fused`, lang: liveLang, mode: 'author', steer: ' DIRECTION=fused-author: author a fresh single-pass FUSED kernel (fold pre/post ops + scaling into the main MFMA core; epilogue-fuse activation). Beat the LIVE kernel.' },
+          { key: `${liveLang}-fused`, lang: liveLang, mode: 'author', steer: ' DIRECTION=fused-author: author a fresh single-pass FUSED kernel (fold pre/post ops + scaling into the target matrix core; epilogue-fuse activation). Beat the LIVE kernel.' },
           { key: `${liveLang}-splitk`, lang: liveLang, mode: 'author', steer: ' DIRECTION=split-K: author a split-K + accumulate variant for the large-M prefill shapes, with a per-shape launch selector that uses the non-split path for small-M decode.' },
           { key: `${liveLang}-deep`, lang: liveLang, mode: 'optimize', steer: ' DIRECTION=deep-explore: combine persistent kernel + epilogue fusion + grid swizzle + aggressive tiling in one coherent rewrite; push toward the roofline SOTA bar.' },
         ];
         for (const t of extra) lanesSpec.push(t);   // global pool — no per-card truncation here
       }
+      if (isRdna4()) lanesSpec = lanesSpec.filter(b => rdna4LanguageAllowed(b.lang));
       const liveBaselineMs = (bake && Number.isFinite(bake.best_known_ms) && bake.best_known_ms > 0) ? bake.best_known_ms : 0;
       const deepDir = `${EVAL_DIR}/deep_head/${h.short_name}`;
       const sharedKb = `${deepDir}/SHARED_KB.md`;
@@ -1974,13 +2015,14 @@ if (want('head') && headQueue.length && HEAD_BUDGET > 0) {
           },
           { phase: 'HeadKernel', label: `extract_op ${h.short_name}`, schema: EXTRACT_OP_SCHEMA });
         if (!ext || ext.smoke !== 'pass' || !ext.task_dir) return { h, gpu, ext, dead: 'extract' };
-        const bake = await safeAgent(
+        const bake = enforceArchBake(await safeAgent(
           roleAgent('op_benchmarker', 'bakeoff', 'DISCOVER existing impls, tune cheap levers, DECIDE author_plan.', {
             EVAL_DIR, OP_TASK_DIR: ext.task_dir, OP_KIND: ext.op_kind, PCT_GPU_TIME: h.pct_gpu_time,
-            CANDIDATE_BACKENDS: ext.candidate_backends || h.candidate_backends || [],
+            CANDIDATE_BACKENDS: archSafeBackends(ext.candidate_backends || h.candidate_backends || []),
+            GPU_GFX, GPU_ARCH_CLASS, GPU_CU_COUNT, GPU_WGP_COUNT, GPU_WAVE_SIZE,
             GPU_ID: gpu, ENABLE_FP8, KERNEL_WF_DIR, KERNEL_BUDGET, SKILL_DIR: WORKFLOW_DIR,
           }),
-          { phase: 'HeadKernel', label: `bakeoff ${h.short_name}`, schema: OPBENCH_SCHEMA });
+          { phase: 'HeadKernel', label: `bakeoff ${h.short_name}`, schema: OPBENCH_SCHEMA }));
         return { h, gpu, ext, bake };
       });
     }));
@@ -2192,13 +2234,14 @@ if (want('head') && headQueue.length && HEAD_BUDGET > 0) {
       continue;
     }
     // (h2) DISCOVER existing impls + tune cheap levers + DECIDE an author_plan.
-    const bake = await safeAgent(
+    const bake = enforceArchBake(await safeAgent(
       roleAgent('op_benchmarker', 'bakeoff', 'DISCOVER existing impls, tune cheap levers, DECIDE author_plan.', {
         EVAL_DIR, OP_TASK_DIR: ext.task_dir, OP_KIND: ext.op_kind, PCT_GPU_TIME: h.pct_gpu_time,
-        CANDIDATE_BACKENDS: ext.candidate_backends || h.candidate_backends || [],
+        CANDIDATE_BACKENDS: archSafeBackends(ext.candidate_backends || h.candidate_backends || []),
+        GPU_GFX, GPU_ARCH_CLASS, GPU_CU_COUNT, GPU_WGP_COUNT, GPU_WAVE_SIZE,
         GPU_ID: h.gpu_id, ENABLE_FP8, KERNEL_WF_DIR, KERNEL_BUDGET, SKILL_DIR: WORKFLOW_DIR,
       }),
-      { phase: 'HeadKernel', label: `bakeoff ${h.short_name}`, schema: OPBENCH_SCHEMA });
+      { phase: 'HeadKernel', label: `bakeoff ${h.short_name}`, schema: OPBENCH_SCHEMA }));
     if (!bake || (bake.gate !== 'have_winner' && bake.gate !== 'author_recommended')) {
       const gate = bake ? bake.gate : 'null';
       const harness = !!(bake && (bake.gate === 'harness_error' || bake.harness_suspect));
@@ -2833,6 +2876,8 @@ if (want('final')) {
 const carryState = {
   backend: BACKEND,
   eval_dir: EVAL_DIR, model_name: MODEL_NAME, baseline_throughput_tok_s: BASELINE_TPUT,
+  gfx: GPU_GFX, gpu_arch_class: GPU_ARCH_CLASS, gpu_cu_count: GPU_CU_COUNT,
+  gpu_wgp_count: GPU_WGP_COUNT, gpu_wave_size: GPU_WAVE_SIZE,
   noise_band_pct: NOISE_BAND, flags: curFlags, env: curEnv, overlay: curOverlay, throughput: curTput,
   profile_topn_json: profile ? profile.profile_topN_json : '',
   config_directions: (strategy && strategy.config_directions) || [],

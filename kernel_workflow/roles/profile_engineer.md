@@ -14,18 +14,20 @@ schema with the cached `bottleneck` / metrics. Re-profile fully only if no prior
 keeps the per-wave fixed cost low so the burst spends its budget on optimization rounds. (When
 `INCREMENTAL_RESUME` is absent — default/fast/first deep burst — do the full baseline profile below.)
 
-Read `SKILL_DIR/knowledge/profiling_guide.md` and `amd_instinct.md` first. **Identify the actual
-accelerator on this box** (`amd_instinct.md` §0: `rocminfo` for the gfx arch + CU count, `rocm-smi
---showproductname` for the card) and record it (gfx942/CDNA3 vs gfx950/CDNA4, CU count, HBM peak) in
-your metrics — the roofline ceiling and grid-sizing advice downstream depend on the real card, not an
-assumed MI300X.
+Read `SKILL_DIR/knowledge/profiling_guide.md`, then run
+`eval "$(bash "$SKILL_DIR/scripts/detect_gpu_arch.sh")"`. Read `amd_rdna4.md` for gfx1200/gfx1201,
+otherwise `amd_instinct.md`. **Identify the actual accelerator** (`rocminfo` for gfx + physical CU
+count, `rocm-smi --showproductname` for the card) and record architecture class, CU count, wave size,
+and measured/appropriate memory roof. On RDNA4 also record WGP count (normally CU/2): PyTorch's
+`multi_processor_count` reports 32 WGP-like units on a 64-CU R9700. RDNA4 uses wave32/WMMA/GDDR and
+WGP/CU-pair semantics; do not label its traffic HBM or interpret it with MI Speed-of-Light/MFMA tables.
 
 ## Steps
 1. From `EVAL_DIR/COMMANDMENT.md` get the PROFILE and benchmark commands and the parse hint.
 2. Clear cache in `WORKSPACE`, then run:
    `bash $SKILL_DIR/scripts/profile_kernel.sh $GPU_ID "<profile/benchmark cmd>" $EVAL_DIR/profile_output[_rN]`
-   This warms up, then profiles with the best available profiler (rocprof-compute → omniperf →
-   rocprof → benchmark-only) and writes a report.
+   This warms up, then profiles with the architecture-aware order (RDNA4: rocprofv3 first; CDNA:
+   rocprof-compute/omniperf first) and writes a report.
    If the report contains a `!!! PROFILER FAILED` block, work the fault-tolerance ladder in
    `profiling_guide.md` ("Profiler failed?"): use `<tool> --help` to find the renamed flag, re-run once
    with the named env override, then degrade deliberately — and record which tool actually ran + why in
@@ -47,7 +49,9 @@ assumed MI300X.
      any tile / `num_stages` / `num_warps` change — it is a property of the config, not the source.
    - **Run the cheap peak/fill sanity-checks** (`profiling_guide.md` → "Cheap checks…") before trusting
      the label: any roofline efficiency > 100% is a mis-calibrated peak (use HBM%/F32), and
-     `CTAs = Grid/Workgroup < CU count` means the GPU is not even filled — call that out first.
+     On CDNA, `CTAs = Grid/Workgroup < CU count` means the GPU is not even filled. On RDNA4 compare
+     first with WGP count, then sweep one and two CTAs per WGP; do not compare PyTorch's WGP-like
+     `multi_processor_count` to a physical-CU threshold.
 5. Write `EVAL_DIR/baseline_metrics.json` (or `round_N_metrics.json`) and
    `EVAL_DIR/profiling_summary.md` (or `round_N_shift_analysis.md`). For reprofile, include a
    BEFORE→AFTER shift section explaining why the bottleneck moved and what to target next.
@@ -61,6 +65,11 @@ If no profiler is available, fall back to benchmark-only + the per-case table + 
   "bottleneck": "compute|memory|latency|lds|balanced|overhead",
   "profiler_used": "rocprof-compute|omniperf|rocprof|benchmark-only",
   "device": "detected card, e.g. 'MI300X / gfx942 / CDNA3, 304 CU, ~5.3 TB/s'",
+  "gfx": "gfx942|gfx950|gfx1200|gfx1201|...",
+  "arch_class": "cdna3|cdna4|rdna4|unknown",
+  "cu_count": 64,
+  "wgp_count": 32,
+  "wave_size": 32,
   "dispatch_count": 0,
   "key_metrics": {"valu_pct": 0.0, "vmem_pct": 0.0, "lds_pct": 0.0, "hbm_gbps": 0.0,
                   "l2_hit_pct": 0.0, "vgpr": 0, "scratch_bytes": 0},

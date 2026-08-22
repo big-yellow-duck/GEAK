@@ -30,6 +30,13 @@ freeze directly from the **input kernel dir**. You do NOT optimize; you build th
 cases), `SKILL_DIR` (this kernel_workflow dir), `KERNEL_KNOWLEDGE_DIR`, `HARNESS_LIB` (abs path to the
 shared `harness_lib.py` to vendor), `GPU_LOCK` (abs path to `gpu_lock.sh`).
 
+Before inspecting backend candidates, run
+`eval "$(bash "$SKILL_DIR/scripts/detect_gpu_arch.sh")"` and record `gfx`,
+`arch_class`, physical CU count (`GEAK_GPU_CU_COUNT` / rocminfo), and WGP scheduler count
+(`GEAK_GPU_WGP_COUNT`). On RDNA4, do not substitute PyTorch's `multi_processor_count` for physical CUs:
+on an R9700 rocminfo reports 64 CUs while PyTorch reports 32 WGP-like scheduling units. On `rdna4`, read
+`SKILL_DIR/knowledge/amd_rdna4.md`; otherwise read `amd_instinct.md`.
+
 ## The op task-dir contract you must emit
 ```
 <EVAL_DIR>/task/
@@ -72,7 +79,8 @@ in order:
 
 Resolve the input kernel's entry point (`module:attr` or the copied `kernel_src` callable) and its
 `live_backend` (the input language: inspect the source — `.hip`/`.cpp` → `hip`, a Triton `@triton.jit` →
-`triton`, aiter flydsl import → `flydsl`, CK → `ck`, else `other`). Record it.
+`triton`, direct `flydsl` imports → `flydsl`, CK → `ck`, else `other`). Record it. An
+`aiter.ops.flydsl` import is AITER-hosted, not proof that standalone FlyDSL is unavailable.
 
 ### 2. Record the CASE MANIFEST (shapes + seeds — no tensors, no golden)
 Pin down *what* gets run, and write it into `meta.cases[]`. Nothing is executed for the record and nothing
@@ -201,9 +209,18 @@ values are regenerated from the recorded seed on every run.
 - Write `meta.json`: `op_kind` (gemm|attn|elementwise|moe|other — from OP_SPEC or inferred), `dtype`,
   `cases[]` (step 2), `geometry`/shape constants the operand builder needs, `regime`, entry callable,
   `baseline_callable`, `baseline_frozen:true`, `tol`, `build` (false for Triton/FlyDSL JIT; true + a build
-  cmd for HIP/CK), `candidate_backends` (the input language always; add triton always, flydsl for GEMM,
-  hip/ck when feasible), `random_draws` (default **5**), the three integrity hashes from step 3, and — if a
+  cmd for HIP/CK), `candidate_backends`, `gfx`, `arch_class`, `cu_count`, `wgp_count`, `random_draws`
+  (default **5**),
+  the three integrity hashes from step 3, and — if a
   workload spec was given — merge it under `"workload"`.
+  Backend policy:
+  - CDNA: input language always; add Triton always, FlyDSL for GEMM, HIP/CK when feasible.
+  - RDNA4: input language always; auto-add direct `triton`, `hip`, and `flydsl` when feasible. Never add
+    `aiter`, AITER-hosted FlyDSL, CDNA asm/MFMA, or CK automatically. FlyDSL main has a native gfx120x
+    wave32/WMMA target and is independent of AITER. Because release wheels can lag main, `import flydsl`
+    alone is not feasibility proof: require an isolated compile/run of the direct gfx120x kernel API.
+    An explicitly requested CK candidate is handled by
+    the dispatcher later and must pass an isolated subprocess smoke test.
   `unittest_sha256` is chicken-and-egg: write `unittest.py` first, hash it, then write `meta.json`.
 
 ### 5. Smoke-test the oracle on the INPUT kernel (must PASS, speedup ≈ 1.0)
@@ -241,6 +258,10 @@ value/layout-dependent op whose inputs cannot be reconstructed), set `smoke:"fai
   "op_kind": "gemm|attn|elementwise|moe|other",
   "task_dir": "<abs op task dir>",
   "live_backend": "hip|triton|flydsl|ck|other",
+  "gfx": "gfx1201",
+  "arch_class": "cdna3|cdna4|rdna4|unknown",
+  "cu_count": 64,
+  "wgp_count": 32,
   "candidate_backends": ["hip","triton","flydsl"],
   "baseline_frozen": true,
   "baseline_callable": "module:attr of the frozen input kernel",

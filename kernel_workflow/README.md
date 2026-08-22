@@ -2,8 +2,8 @@
 
 A deterministic **Workflow** (JS-orchestrated multi-agent pipeline) that optimizes the inference
 speed of a GPU kernel directory — a single kernel, several kernels fused together, or an end-to-end
-vLLM / SGLang model — on AMD Instinct MI-series accelerators (MI300X / MI300A / MI308X / MI325X on
-CDNA3 gfx942, and MI350X / MI355X on CDNA4 gfx950 — the card is detected on-box, not assumed). The
+vLLM / SGLang model — on AMD CDNA accelerators (gfx942/gfx950) and RDNA4 Radeon/Radeon PRO GPUs
+(gfx1200/gfx1201 — the card is detected on-box, not assumed). The
 budget loop, round fan-out, and verification are **JS control flow**, while every judgement call is made
 by an agent returning **structured JSON**.
 
@@ -60,7 +60,7 @@ this folder lives and pass that same folder as `args.workflow_dir`:
 > string. Do not wrap it in quotes or `json.dumps()` it. If `args` arrives as a string the
 > workflow cannot read `args.workflow_dir` / `args.kernel_path` and aborts immediately.
 
-```
+```javascript
 Workflow({
   scriptPath: "<WF_DIR>/kernel_workflow.js",   // <WF_DIR> = absolute path to THIS kernel_workflow/ folder
   args: {
@@ -104,6 +104,22 @@ Workflow({
   }
 })
 ```
+
+### RDNA4 (`gfx1200` / `gfx1201`)
+
+RDNA4 is a first-class kernel target with wave32/WGP/WMMA/GDDR guidance in
+[`knowledge/amd_rdna4.md`](knowledge/amd_rdna4.md). Automatic bake-off uses direct HIP, Triton, and
+upstream FlyDSL. FlyDSL main has a native gfx120x lowering and lists gfx1201 as verified; it is used
+directly and does not require AITER.
+
+**AITER is disabled on RDNA4**: discovery does not import it, run its offline tuner, deploy its config
+files, or use `aiter.ops.flydsl`. CK/CK-Tile is not auto-selected because installed serving stacks may
+contain CDNA-specialized instances; it is available only when explicitly requested and still must pass
+the isolated oracle. CDNA MFMA assembly is never offered on RDNA4.
+
+The GPU wrapper exports `PYTORCH_ROCM_ARCH`, `GPU_ARCHS`, `FLYDSL_GPU_ARCH`, and explicit physical-CU /
+WGP counts for the detected target. The profiler wrapper prefers rocprofv3 on gfx120x and gracefully
+degrades when rich SoL counters are not available.
 
 ### Workload alignment (NEW)
 By default the harness benchmarks small/medium/large cases unweighted. Pass a **workload spec** to
@@ -285,7 +301,7 @@ roles/               director, tech_lead, engineer, deep_engineer (deep_explore)
                      update_experience (learned-card curation, every run),
                      researcher (DRA, opt-in)
 knowledge/           optimization_strategies, hip/triton/wrapper, profiling_guide,
-                     amd_instinct (multi-card: gfx942/gfx950), self_monitoring, geomean_levers
+                     amd_instinct (CDNA), amd_rdna4 (gfx1200/gfx1201), self_monitoring, geomean_levers
 knowledge/learned/   distilled experience cards (ADVISORY priors; each card self-describing via its
                      discovery header, INDEX.md GENERATED from them; written by the
                      TechLead update_experience step at the end of EVERY run). This sink is

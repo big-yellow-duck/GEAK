@@ -169,7 +169,7 @@ Steps:
 2. **Research the web.** Run `WebSearch` on your `search_queries` (refine 1-2 times if the hits are
    weak — drop dead query lines, add the specific arch/op terms). `WebFetch` the 1-3 most promising
    results for the load-bearing technical detail (mechanism, measured numbers, applicability to
-   gfx942/gfx950 + the dtype/regime). Prefer papers/whitepapers/vendor blogs; use GitHub only for
+   detected target (gfx942/gfx950/gfx1200/gfx1201) + the dtype/regime). Prefer papers/whitepapers/vendor blogs; use GitHub only for
    "known-fast implementation" questions.
 3. **Synthesize one answer**: what the evidence says, whether the mechanism actually applies to THIS
    kernel on THIS card, and a `status`:

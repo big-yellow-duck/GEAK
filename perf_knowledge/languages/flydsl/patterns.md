@@ -1,7 +1,7 @@
 ---
 title: FlyDSL — usage patterns (HGEMM, preshuffle, split-K, MoE)
 kind: language
-gens: [gfx942, gfx950]
+gens: [gfx942, gfx950, gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3_fnuz, int8, mxfp4]
 regimes: [prefill, decode, both]
 status: competitive
@@ -13,6 +13,10 @@ sources:
 ---
 
 # FlyDSL — usage patterns
+
+> RDNA4: use standalone upstream FlyDSL patterns (`kernels/gemm/rdna_f16_gemm.py`) and its gfx120x
+> wave32/WMMA atoms. The `aiter.ops.flydsl` APIs below are CDNA integration examples and are prohibited
+> by GEAK's RDNA4 policy; they do not define FlyDSL's architecture support.
 
 All signatures verified against the on-box aiter source. Two ways to reach FlyDSL: the **direct API**
 (`aiter.ops.flydsl.flydsl_hgemm`) for authoring/benchmarking, and the **tuned-GEMM dispatch**

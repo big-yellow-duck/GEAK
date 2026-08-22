@@ -114,7 +114,8 @@ Honor every axis **generically** via the shared `harness_lib` primitives — do 
   unfused eager (else the speedup is a strawman). Enforce it via `h.compiled_op(fn, regime)` on BOTH the
   baseline and candidate before timing (no-op when the regime is eager) — see the timing rule in step 4.
 - **fp8 format is arch-specific** (the ONE hardware axis): MI300/MI325 (gfx942/CDNA3) use AMD `fnuz`
-  fp8; MI355 (gfx950/CDNA4) use OCP `fn` fp8. `h.regime_dtype("fp8")` picks the running GPU's variant
+  fp8; MI355 (gfx950/CDNA4) and gfx120x/RDNA4 use OCP `fn` fp8. gfx120x is wave32/WMMA and must not
+  inherit gfx950 MFMA/MX assumptions. `h.regime_dtype("fp8")` picks the running GPU's variant
   automatically (or pass `arch=` for offline cross-arch synth); an explicit `fp8_e4m3fnuz`/`fp8_e4m3fn`
   from the checkpoint config wins. The layout (`h.pack_x`) is arch-independent — every fp8 is 1 byte →
   `x=16` on both. So do NOT hardcode `float8_e4m3fnuz`.

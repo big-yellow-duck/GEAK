@@ -14,7 +14,10 @@ Always-available references (Read what's relevant to the phase):
 - `SKILL_DIR/knowledge/geomean_levers.md` — how to beat the wall-clock floor (read every round)
 - `SKILL_DIR/knowledge/hip_optimization.md` / `triton_optimization.md` — per kernel type
 - `SKILL_DIR/knowledge/wrapper_optimization.md` — host/runtime patterns
-- `SKILL_DIR/knowledge/amd_instinct.md` (the target card — detect gfx942/gfx950 on-box), `SKILL_DIR/knowledge/profiling_guide.md`
+- Hardware card selected after `scripts/detect_gpu_arch.sh`: `amd_rdna4.md` for gfx1200/gfx1201,
+  otherwise `amd_instinct.md`; plus `SKILL_DIR/knowledge/profiling_guide.md`. Never mix RDNA
+  wave32/WMMA/GDDR guidance with CDNA wave64/MFMA/HBM guidance. On RDNA4, AITER is unavailable,
+  direct FlyDSL is supported, and CK is explicit opt-in only.
 - `SKILL_DIR/knowledge/learned/INDEX.md` — **only when the `LEARNED_KB` input says `on`.** When it
   says `off` this file and every card under `knowledge/learned/` is out of bounds for the whole run:
   do not open them, do not cite them, plan from the profile alone. That input is the switch a caller

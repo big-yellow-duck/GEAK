@@ -1,6 +1,6 @@
 export const meta = {
   name: 'kernel-lane',
-  description: 'SINGLE-LANGUAGE kernel optimization worker (Director/TechLead/specialist Engineers) with budget-controlled rounds, independent verification, and integration. Optimizes ONE kernel in ONE language (mode=optimize) or authors a fresh seed then optimizes it (mode=author). This is the worker invoked per lane by the kernel-workflow dispatcher (kernel_workflow.js) and by e2e_workflow; prefer calling kernel-workflow directly unless you specifically want one unchanged lane. Target: AMD Instinct MI-series GPUs (MI300X/300A/308X/325X on CDNA3 gfx942, MI350X/355X on CDNA4 gfx950 — the target card is auto-detected on-box).',
+  description: 'SINGLE-LANGUAGE AMD kernel optimization worker with budget-controlled rounds, independent verification, and integration. Optimizes one existing kernel or authors a fresh seed. Targets CDNA gfx942/gfx950 and RDNA4 gfx1200/gfx1201; the card is detected on-box and roles select wave64/MFMA/HBM or wave32/WMMA/GDDR guidance accordingly.',
   whenToUse: 'Internal single-language worker. Prefer the kernel-workflow dispatcher (kernel_workflow.js) as the entry point; invoke this directly only to run one unchanged lane. Pass args.kernel_path (required), args.mode, args.target_language, args.budget, args.gpu_ids, args.gpu_mode, args.task.',
   phases: [
     { title: 'Setup', detail: 'director builds the isolated eval dir + canonical workspace' },
@@ -335,6 +335,8 @@ const PROFILE_SCHEMA = obj({
   // The accelerator detected on-box (e.g. "MI300X / gfx942 / CDNA3, 304 CU, ~5.3 TB/s"), so the
   // roofline ceiling + grid-sizing advice downstream use the real card instead of an assumed MI300X.
   device: { type: 'string' },
+  gfx: { type: 'string' }, arch_class: { type: 'string' },
+  cu_count: { type: 'number' }, wgp_count: { type: 'number' }, wave_size: { type: 'number' },
   key_metrics: { type: 'object', additionalProperties: true },
   top_kernels: { type: 'array', items: { type: 'object', additionalProperties: true } },
   top_opportunities: { type: 'array', items: { type: 'string' } },
@@ -1283,7 +1285,8 @@ if (kbGate) log(`[kb] not distilling: ${kbGate}.`);
 // run did not earn. Reported in review of #411.
 const kbAccepted = String((validation && validation.validation_status) || '').toLowerCase() === 'accepted';
 if (!kbGate && UPDATE_EXPERIENCE_ON && kbAccepted && Number.isFinite(finalPrimary) && finalPrimary > 1.0) {
-  const GFX = (String((profileSummary && profileSummary.device) || '').match(/gfx\d+/i) || [''])[0].toLowerCase();
+  const GFX = String((profileSummary && profileSummary.gfx) ||
+    ((String((profileSummary && profileSummary.device) || '').match(/gfx\d+/i) || [''])[0])).toLowerCase();
   try {
     learned_card = await agentT(
       roleAgent('update_experience', 'Validate',

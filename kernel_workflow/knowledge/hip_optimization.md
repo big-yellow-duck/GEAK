@@ -2,6 +2,10 @@
 
 Patterns are ranked by priority. Higher priority (P0) = higher expected impact. Always start with P0 strategies before moving to lower priorities.
 
+First run `scripts/detect_gpu_arch.sh` and read the matching hardware card. All
+wave examples below are parameterized by `warpSize`: normally 64 on CDNA and 32
+on RDNA4. Never copy a literal lane count across those families.
+
 ## P0: Algorithm Restructuring (Highest Impact)
 
 ### Template Parameterization
@@ -35,42 +39,42 @@ void launch(int param, ...) {
 ### Warp-Cooperative Algorithms (HIGHEST PRIORITY for search/scan kernels)
 
 **THIS IS THE MOST IMPACTFUL OPTIMIZATION FOR KERNELS WHERE EACH THREAD SCANS A LARGE ARRAY.**
-Instead of 1 thread per work item, use 1 wavefront (64 threads) per work item. Each lane processes a strided subset of the data, then results are merged across lanes via shared memory.
+Instead of 1 thread per work item, use 1 wavefront (`warpSize` threads) per work item. Each lane processes a strided subset of the data, then results are merged across lanes via shared memory.
 
 **When to use**: Any kernel where a single thread iterates over N elements (brute-force search, argmin/argmax over arrays, top-K selection, reduction over large arrays). Expected speedup: **5-30x**.
 
-**Architecture**: With 256 threads per block and wavefront size 64:
-- 4 wavefronts per block → 4 work items processed per block
-- Grid: `dim3(DIVUP(M, 4), B)` where M = number of work items
-- Each lane scans `N/64` elements (strided: `for (i = lane; i < N; i += 64)`)
+**Architecture**: `waves_per_block = blockDim.x / warpSize`. With 256 threads,
+that is four waves on CDNA or eight waves on RDNA4. Derive the grid and stride
+from those values rather than transcribing the CDNA example.
 
 **Pseudocode for warp-cooperative search:**
 
 ```
 1. Thread indexing:
-   warp_id = threadIdx.x / 64     (which wavefront within the block)
-   lane    = threadIdx.x % 64     (which lane within the wavefront)
-   item_id = blockIdx.x * 4 + warp_id  (which work item this wavefront handles)
+   wave_id = threadIdx.x / warpSize
+   lane    = threadIdx.x % warpSize
+   waves_per_block = blockDim.x / warpSize
+   item_id = blockIdx.x * waves_per_block + wave_id
 
-2. Local scan: Each lane scans elements [lane, lane+64, lane+128, ...] up to N.
+2. Local scan: Each lane scans elements [lane, lane+warpSize, ...] up to N.
    Maintains a local best result (or local top-K sorted array for top-K problems).
 
 3. Shared-memory merge: Write per-lane results to shared memory.
-   Tree reduction in log2(64)=6 steps — each step merges pairs of results.
+   Tree reduction in log2(warpSize) steps — each step merges pairs of results.
    For top-K: merge two sorted K-arrays, keep best K.
 
 4. Final write: Lane 0 of each wavefront writes the merged result to global memory.
 ```
 
 **Key implementation details:**
-- Grid is `dim3(DIVUP(M, 4), B)` — each block handles 4 work items
-- Shared memory: `4 * 64 * RESULT_SIZE * sizeof(...)` — must fit in 64KB LDS
-- The merge tree runs in 6 steps (log2(64)=6), each step halving active lanes
+- Grid is `dim3(DIVUP(M, waves_per_block), B)`
+- Shared memory is `waves_per_block * warpSize * RESULT_SIZE * sizeof(...)`
+- The merge tree runs in `log2(warpSize)` steps
 - Use `__syncthreads()` after each merge step (block-level sync, shared memory is block-scoped)
 - Template the result size so the compiler can unroll the merge and eliminate dead code
 - Use `__launch_bounds__(256)` to help compiler optimize register allocation
 
-**Expected speedup**: 5-30x for brute-force search/scan kernels. The speedup scales with N because each lane only scans N/64 elements.
+**Expected speedup**: 5-30x for brute-force search/scan kernels. The speedup scales with N because each lane only scans roughly `N/warpSize` elements.
 
 ### Algorithmic Complexity Reduction
 Replace O(N) brute-force with O(log N) or O(1) approaches where possible: spatial hashing, KD-tree traversal, bitonic sort, prefix scan.
@@ -164,16 +168,15 @@ Use `#pragma unroll` for small, fixed-trip-count loops. Use `#pragma unroll N` t
 ## P4: Launch Configuration
 
 ### Block Size Tuning
-- Must be multiple of 64 (wavefront size on AMD)
-- Common sweet spots: 64, 128, 256
+- Prefer a multiple of 64 for cross-generation kernels; 32 is also one complete native wave on RDNA4
+- Common search points: 32 (RDNA-only tiny work), 64, 128, 256
 - Use `__launch_bounds__(max_threads, min_waves)` to guide compiler
 
 ### Occupancy vs Register Pressure
 Higher occupancy hides latency but limits registers per thread. For register-heavy kernels, lower occupancy with more registers can be faster.
 
 ### Grid Size
-- Ensure enough blocks to fill all CUs (detect the count with `rocminfo` — 304 on MI300X/MI325X, 228 on
-  MI300A, 256 on MI350/MI355, reduced on MI308X; do not hard-code 304)
+- Ensure enough blocks to fill all runtime-reported CUs; do not hard-code an MI or Radeon SKU count
 - For small problems: use persistent threads (fewer blocks, each does more work)
 
 ## P5: Autotuning

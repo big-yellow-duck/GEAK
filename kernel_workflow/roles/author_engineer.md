@@ -13,9 +13,9 @@ from the op task dir). The op's correctness contract is an **IMMUTABLE** unittes
 
 ## Inputs (in your prompt)
 - `TARGET_LANGUAGE` — `triton` (always supported) | `flydsl` | `hip` | `ck` (pluggable; only if
-  requested). `flydsl` is aiter's Python kernel DSL (JIT like triton — NO build step); it is the
-  preferred author target for **dense / quantized GEMM (esp. fp8 / A4W4 / mxfp4)** because aiter ships a
-  production FlyDSL hgemm you reuse as the correct baseline, then the optimize loop tunes its knobs.
+  requested). FlyDSL is an independent ROCm Python/MLIR kernel DSL (JIT like Triton — no build step).
+  Its upstream main branch has a native gfx120x wave32/WMMA lowering and lists gfx1201 as verified.
+  On RDNA4 use direct `flydsl` APIs/examples; never import it through `aiter.ops.flydsl`.
 - `OP_SPEC` — from the extractor's `meta.json`: `op_kind` (gemm|attn|…), `shapes` / `a_shape`/
   `b_shape`/`transpose_b`/`bias` (gemm), captured tensor spec (attn), `dtype`, `math_contract`
   (e.g. `C = A·Bᵀ + bias`), `regime` (prefill|decode|both).
@@ -59,9 +59,10 @@ Read, as reference, before writing:
   hip→`hip_cpp`, ck→`composable_kernel`, asm→`asm_mfma`, tilelang→`tilelang`, gluon→`gluon`,
   hipkittens→`hipkittens`. **The file set differs per language** — `ls` the dir and read what is there
   (`overview.md` / `patterns.md` / `knobs.md` / `pitfalls.md` / `primitives.md`); only `triton_amd` and
-  `flydsl` carry all three of overview/patterns/knobs. For **flydsl GEMM**, the simplest
-  correct baseline is to call aiter's `flydsl_hgemm` — `out = a @ b.T (+bias)` — rather than hand-writing
-  layout algebra; commit that, the optimize loop tunes tile/split_k/preshuffle. flydsl is JIT (no build).
+  `flydsl` carry all three of overview/patterns/knobs. For **FlyDSL GEMM on CDNA**, an installed AITER
+  wrapper may be a measured candidate. For **RDNA4**, AITER is prohibited: start from upstream FlyDSL's
+  direct `kernels/gemm/rdna_f16_gemm.py` pattern and gfx120x atoms. The optimize loop then tunes the
+  direct source. FlyDSL itself is JIT and needs no AITER build or dispatch table.
   For **gluon** the dir is facts-only (`overview.md`, `programming_model.md`, `gemm_cookbook.md`); the
   fuller language surface, the TTGIR→Gluon transcription toolchain and pipeline re-injection live in the
   `gluon_authoring` expert skill and are only injected when `use_expert_skills` is on. That skill is
@@ -72,12 +73,10 @@ Read, as reference, before writing:
   attention_decode→`attention_decode_paged`, mla→`mla_attention`,
   linear_attention→`linear_attention_gated_delta`, moe→`fused_moe_grouped_gemm`/`grouped_gemm_moe`
   (else the closest dir under `operators/`).
-- **Hardware sanity (first cut only):** detect the arch with `rocminfo` and read
-  `SKILL_DIR/knowledge/amd_instinct.md` §3 for the arch-specific fp8 format + MFMA shapes —
-  **fp8 is FNUZ on gfx942 (CDNA3) but OCP on gfx950 (CDNA4), which also adds MXFP4/MXFP6**; picking the
-  wrong fp8 format silently fails correctness. Also `hardware/shared/matrix_core_mfma_smfmac.md` +
-  `dtype_numerics.md` for MFMA shape/dtype, and `quantization/fnuz_vs_ocp.md` /
-  `optimization/mfma_scheduling.md` (prefer `matrix_instr_nonkdim=16` on gfx942).
+- **Hardware sanity (first cut only):** run `scripts/detect_gpu_arch.sh`. Read `amd_rdna4.md` for
+  gfx1200/gfx1201, else `amd_instinct.md`. gfx942 uses FNUZ FP8 + MFMA; gfx950 uses OCP FP8 + MFMA/MX;
+  gfx120x uses OCP FP8 + wave32 WMMA and must not consume CDNA MFMA tile advice. For RDNA4, AITER and
+  CDNA asm are unavailable, direct FlyDSL/HIP/Triton are supported, and CK requires explicit opt-in.
 
 > **🔴 "Baseline" here means your CORRECT-FIRST SEED for the optimize loop — NOT the speedup
 > denominator.** The reported speedup is ALWAYS measured by the immutable `unittest.py` against the

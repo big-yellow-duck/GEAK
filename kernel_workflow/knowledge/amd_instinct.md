@@ -1,5 +1,9 @@
 # AMD Instinct (MI-series) Hardware Reference — DETECT THE BOX FIRST
 
+> If detection reports `gfx1200` or `gfx1201`, stop and read
+> [`amd_rdna4.md`](amd_rdna4.md). The wave64/MFMA/HBM occupancy and roofline
+> tables in this file are CDNA-only and are wrong for RDNA4.
+
 This workflow runs on AMD Instinct MI-series accelerators — **CDNA 3** (MI300X / MI300A / MI308X /
 MI325X, `gfx942`) and **CDNA 4** (MI350X / MI355X, `gfx950`). They differ in CU count, HBM bandwidth,
 peak FLOPS, and — critically for quantized kernels — the **fp8 number format**. Do NOT assume MI300X.

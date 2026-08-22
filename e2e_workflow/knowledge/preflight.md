@@ -20,6 +20,9 @@
 - **Adapt the plan to what you find.** Capability detected here flows downstream: no rocprofv3 →
   Profiler runs torch-trace only; aiter absent → drop aiter from candidate backends; gfx unknown →
   widen tuning search instead of trusting gfx942 priors.
+- **RDNA4 policy is architecture, not availability.** On gfx1200/gfx1201, do not import or probe AITER:
+  record it as `policy_disabled` and remove every AITER/env-tune rung even if a package is installed.
+  Probe standalone FlyDSL directly; upstream main has a native gfx120x wave32/WMMA path.
 
 ## What's a `block` vs a `degrade`
 | Condition | Verdict | Why |
@@ -59,7 +62,11 @@ is the capability signal the Architect uses instead of guessing from kernel name
 ```bash
 amd-smi list 2>/dev/null || rocm-smi --showid 2>/dev/null || rocminfo 2>/dev/null | grep -m1 gfx
 ```
-Record gfx (e.g. `gfx942`). Unknown → `degrade` (don't apply gfx942-specific priors blindly).
+Record gfx and classify it: gfx942→cdna3, gfx950/gfx95*→cdna4, gfx1200/gfx1201→rdna4. Also record
+physical CU count, WGP scheduler count, and wave size. On RDNA4 use rocminfo's `Compute Unit` for the
+physical CU count and `CU/2` for WGPs; HIP/PyTorch `multi_processor_count` reports the latter on the
+R9700 (32), not the marketed/rocminfo CU count (64). Unknown → `degrade` (don't apply gfx942-specific
+priors blindly).
 
 **4. Profiler capability (degrade-friendly).** Prefer rocprofv3 for authoritative HW durations, but
 never hard-require it:
@@ -71,23 +78,33 @@ Record which trace sources are available; the Profiler reads this from `env_repo
 **5. Tuning/backends present (shapes the ladder).** Probe the optional rungs; missing ones are simply
 removed from the candidate list, not errors:
 ```bash
+# CDNA only:
 python3 -c "import aiter; print('aiter ok')" 2>/dev/null || echo "no aiter"
-# FlyDSL (aiter's GEMM/attn DSL — SOTA author target for dense/quantized GEMM). It is NOT a top-level
-# module: probe via aiter.ops.flydsl.is_flydsl_available() (a function), NOT `import flydsl` /
-# `aiter.flydsl` (those raise ImportError even when FlyDSL is installed → false "no flydsl").
+# CDNA AITER integration probe (not FlyDSL's own availability):
 python3 -c "import aiter.ops.flydsl as f; print('flydsl', f.installed_flydsl_version if f.is_flydsl_available() else 'unavailable')" 2>/dev/null || echo "no flydsl"
+# RDNA4: NEVER run either AITER command above. This import/target probe is necessary but not sufficient:
+FLYDSL_GPU_ARCH="$GFX" python3 -c "import flydsl; from flydsl.runtime.device import get_rocm_arch,is_rdna_arch; a=get_rocm_arch(); assert is_rdna_arch(a); print('flydsl',a)"
 command -v hipblaslt-bench || echo "no hipblaslt-bench (offline GEMM tune unavailable)"
 command -v ckProfiler   || echo "no ckProfiler (CK instance sweep unavailable)"
 ```
-When `is_flydsl_available()` is true, **flydsl MUST appear in `available_backends`** (it is reachable
-via the aiter per-shape DB tune `libtype=flydsl` AND as a Tier-C author target). Do not infer its
-absence from an `import flydsl` failure — only `is_flydsl_available()` is authoritative.
+On CDNA, the AITER integration probe may expose its hosted wrapper. On RDNA4, standalone `import flydsl`
+plus `is_rdna_arch(gfx120x)` proves only target recognition. Before putting FlyDSL in
+`available_backends`, compile and run upstream main's `kernels/gemm/rdna_f16_gemm.py` (or the candidate's
+actual direct gfx120x kernel) in a subprocess, parity-check it, and inspect emitted ISA for `v_wmma*`.
+Released wheels can lag main: for example, an installed package may recognize gfx1201 yet lack a newer
+authoring symbol used by main. Treat that as `version_api_mismatch`, not as available. AITER must appear
+under `absent_backends` with `probe: policy_disabled_on_rdna4`; do not suggest installing it as a remedy.
 
 **Record WHY each optional backend is absent + HOW to provision it (don't just drop it).** For every
 backend NOT in `available_backends`, write an `absent_backends[<name>] = {probe, remedy}` entry to
 `env_report.json` so later phases can surface an ACTIONABLE hint instead of silently dropping a
 strategy-mandated lever (the workflow itself never installs anything — the remedy is for the operator).
-FlyDSL absence in particular has **two independent layers** — say which one is missing:
+On **RDNA4**, FlyDSL has one standalone compatibility boundary: package/compiler Python API + gfx120x
+lowering must match the chosen main-branch kernel. The remedy for `version_api_mismatch` is a pinned
+standalone FlyDSL main revision/build whose native RDNA smoke kernel passes on the installed ROCm stack;
+never prescribe AITER. Do not mutate the environment during preflight.
+
+On **CDNA AITER-hosted integrations only**, FlyDSL absence has two independent layers — say which one is missing:
 - The probe `python3 -c "import aiter.ops.flydsl as f; f.is_flydsl_available()"` can fail at the
   `import aiter.ops.flydsl` step (`ModuleNotFoundError: No module named 'aiter.ops.flydsl'`) → the
   installed **`amd_aiter` build does not ship the `aiter/ops/flydsl/` wrapper** (the layer holding

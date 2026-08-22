@@ -15,8 +15,9 @@ sglang, and GEAK runs the full optimization loop: it finds the bottlenecks, gene
 across paths such as Triton, FlyDSL, TileLang, and HIP, and validates the speedup on the real system. What
 normally takes weeks of expert kernel engineering becomes an automated, repeatable, and self-improving process.
 
-GEAK targets AMD Instinct MI GPUs (CDNA, e.g. gfx942 / gfx950; the on-box card is auto-detected), driven by either
-**Codex CLI** (default) or Claude Code and orchestrated by deterministic JS Workflows. It ships two workflows:
+GEAK targets AMD CDNA GPUs (gfx942/gfx950), and `kernel_workflow` also supports RDNA4
+gfx1200/gfx1201; the on-box card is auto-detected. Its
+deterministic JS workflows run through either **Codex CLI** (default) or Claude Code:
 
 | Workflow | Scope | What it optimizes |
 | --- | --- | --- |
@@ -41,8 +42,9 @@ optimize a single kernel.
 
 ### 1. Prerequisites
 
-- An **AMD Instinct MI GPU** (CDNA, e.g. gfx942 / gfx950), **ROCm 6+**, a profiler (`rocprof-compute` /
-  `rocprofv3` / `rocprof`), Python 3.8+.
+- An AMD GPU supported by the selected path: **Instinct CDNA gfx942/gfx950**, or **RDNA4
+  gfx1200/gfx1201 for `kernel_workflow`**, with a compatible ROCm build, a profiler (`rocprof-compute` /
+  `rocprofv3` / `rocprof`), and Python 3.8+.
 - For E2E: a running-capable serving backend (`sglang` or `vllm`) and the model weights on disk.
 
 > **⚠️ Build your kernel environment first.** GEAK does **not** install the toolchains your kernels

@@ -3,7 +3,7 @@ title: dense_gemm on rocwmma — SOTA card
 kind: sota_card
 operator: dense_gemm
 backend: rocwmma
-gens: [gfx942, gfx950]
+gens: [gfx942, gfx950, gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3_fnuz]
 regimes: [prefill, decode]
 status: legacy
@@ -14,6 +14,9 @@ sources:
 ---
 
 # dense_gemm × rocwmma
+
+> gfx120x is a supported wave32 WMMA target. Its gfx12/v8 fragment ABI differs from gfx11 and its
+> WGP/CU resource model differs from CDNA. Use `amd_rdna4.md` and never hard-code WaveSize=64.
 
 ## TL;DR
 > rocWMMA is a header-only C++ WMMA-style wrapper over MFMA — a **portability/teaching** API (CUDA-WMMA-

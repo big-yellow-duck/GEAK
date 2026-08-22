@@ -3,8 +3,8 @@ title: dense_gemm on Triton — SOTA card
 kind: sota_card
 operator: dense_gemm
 backend: triton
-gens: [gfx90a, gfx942, gfx950]
-dtypes: [bf16, fp16, fp8_e4m3_fnuz]
+gens: [gfx90a, gfx942, gfx950, gfx1200, gfx1201]
+dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3]
 regimes: [prefill, decode]
 status: competitive
 updated: 2026-06-08
@@ -16,6 +16,9 @@ sources:
 ---
 
 # dense_gemm × Triton
+
+> On gfx120x re-tune for wave32/WMMA and the 64 KiB-per-CU LDS model. Do not reuse CDNA
+> `matrix_instr_nonkdim`, wave64, MFMA, HBM, or XCD advice. Confirm native `v_wmma*` lowering in ISA.
 
 ## TL;DR
 Triton is the fastest backend to **write/iterate** a GEMM and the one PyTorch-Inductor max-autotune emits —

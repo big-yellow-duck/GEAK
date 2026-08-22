@@ -18,6 +18,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # The usage line deliberately shows NO concrete ids. It used to read "e.g. 0,1,2,3", and that
 # example was copied verbatim into real commands by agents improvising one-off checks -- the
 # literal string "0,1,2,3" turned up in 15 invocations from runs that had been allocated neither
@@ -169,6 +171,20 @@ if [ "${KERNEL_ENV_KEEP_ARCH:-0}" != "1" ]; then
     # hundreds -> kernel task-count explosion + ~2x serving-throughput degradation. Setting GPU_ARCHS
     # eliminates the spawn at the source (the reap above is now just a backstop). Honor a caller value.
     [ -n "${_ARCH:-}" ] && export GPU_ARCHS="${GPU_ARCHS:-$_ARCH}"
+    # FlyDSL is an independent compiler/runtime (not an AITER-only backend). Its
+    # upstream detector accepts FLYDSL_GPU_ARCH and has a native gfx120x
+    # wave32/WMMA path. Pin it to the same physical target as HIP/Torch so every
+    # lane compiles for the device it is measured on.
+    [ -n "${_ARCH:-}" ] && export FLYDSL_GPU_ARCH="${FLYDSL_GPU_ARCH:-$_ARCH}"
+fi
+
+# Give every benchmark/compiler subprocess a stable architecture family and
+# logical wave size. These are advisory environment facts; kernels must still
+# use compiler/runtime queries instead of baking them into portable source.
+_DETECT_ARCH="$SCRIPT_DIR/detect_gpu_arch.sh"
+if [ -r "$_DETECT_ARCH" ]; then
+    eval "$(GEAK_GPU_GFX="${_ARCH:-${GEAK_GPU_GFX:-}}" bash "$_DETECT_ARCH")"
+    export GEAK_GPU_GFX GEAK_GPU_ARCH_CLASS GEAK_GPU_WAVE_SIZE GEAK_GPU_CU_COUNT GEAK_GPU_WGP_COUNT
 fi
 
 if [ -n "${POOL_FD:-}" ]; then
