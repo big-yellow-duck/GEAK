@@ -39,6 +39,13 @@ absolute per-case latencies. The script trusts only your numbers.
    If the patch fails to apply → return `status:"apply_failed"`, `verified_geomean:0`.
 2. Read `COMMANDMENT.md` for the exact correctness + full-benchmark commands + parse hint.
 3. Run CORRECTNESS (cwd = your ws). If it fails → `status:"correctness_failed"`, no speedup.
+3a. Enforce deployment semantics before timing. Inspect the applied patch and candidate source for
+   output/result memoization or activation-dependent caching. Reject with `status:"correctness_failed"`
+   and `verified_geomean:0` if an invocation can skip the requested computation because activation
+   tensors have the same object identity, `data_ptr`, version, storage metadata, or values as a prior
+   invocation. Repeated tensor objects in the microbenchmark are not a promise that vLLM activations
+   repeat. Weight-only caches (compiled kernels, launch plans, preshuffled immutable weights) are valid
+   when mutation/view/stream safe; cached final outputs and activation-derived intermediates are not.
 4. Run FULL_BENCHMARK via `bash $SKILL_DIR/scripts/gpu_lock.sh $GPU_ID <cmd>`. Parse per-case
    latency using the parse hint. Run it **twice** and keep the better/median if the two disagree by
    >5% (note the variance).

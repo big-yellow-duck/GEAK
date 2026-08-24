@@ -85,6 +85,12 @@ Read, as reference (focused — start with the paths handed to you, don't crawl 
    cache aside instead of deleting: `mv .torch_ext .torch_ext.stale_$(date +%s)_$$ 2>/dev/null || true`.
 5. ALWAYS run CORRECTNESS before BENCHMARK. A fast-but-wrong kernel scores 0.
 6. Preserve the kernel's external interface (signature, semantics) so the wrapper/tests still work.
+   Every invocation must compute from the current activation inputs. Never memoize or reuse a final
+   output, nor any activation-dependent result, based on Python object identity, `data_ptr`, tensor
+   version, storage metadata, or repeated benchmark values. The harness may deliberately reuse tensor
+   objects while timing; that is a measurement fixture, not a deployment reuse guarantee. Caching
+   immutable weights, compiled kernels, launch plans, and weight-only transformed layouts is allowed
+   when mutation/view/stream safety is preserved.
 7. Hipify safety (HIP): never put `<<<>>>` launches inside a macro if/else or ternary — use template
    dispatch functions. See `hip_optimization.md` → Hipify Safety Rules.
 

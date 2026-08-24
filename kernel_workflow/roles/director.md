@@ -205,6 +205,12 @@ baseline latencies recorded at benchmark setup).
 
 **Do NOT trust the TechLead's reported speedup — reproduce it from the TRUE baseline.**
 
+Before accepting a final patch, reject output/result memoization and activation-dependent caches.
+Every invocation must execute from the current activation inputs even when the isolated benchmark
+reuses the same tensor objects. Caching immutable weights, compiled kernels, launch plans, and
+weight-only transformed layouts is allowed; skipping the GEMM by keying a prior output on object
+identity, `data_ptr`, tensor version, storage metadata, or repeated values is not deployment-valid.
+
 1. Read `EVAL_DIR/COMMANDMENT.md` for the exact correctness + full-benchmark commands.
 2. Build a fresh validation workspace from the ORIGINAL path:
    ```bash
