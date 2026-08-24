@@ -1,0 +1,56 @@
+{
+  "kernel_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_prefill_rdna4/baseline",
+  "workflow_dir": "/app/GEAK/kernel_workflow",
+  "mode": "bakeoff",
+  "backends": [
+    "triton"
+  ],
+  "gpu_ids": "0,1",
+  "budget": 12,
+  "min_improve": 0.005,
+  "candidate_floor": 1.0,
+  "progress_delta": 0.001,
+  "max_no_improve": 3,
+  "deep_cost": 3,
+  "dra_enabled": "false",
+  "apply_to_original": "false",
+  "update_experience": "on",
+  "enable_fp8": "true",
+  "workload_spec_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_prefill_rdna4/baseline/workload.json",
+  "task": "Before planning, find and read the source-tree EXPERIMENT_CONTEXT.md (it is baseline/EXPERIMENT_CONTEXT.md before freezing and normally kernel_src/EXPERIMENT_CONTEXT.md inside the frozen task) and treat it as mandatory campaign memory. This is a prefill-only Triton specialization run seeded from the validated round-4 hybrid. Preserve binding.cpp at SHA-256 d27cf9138d74b033668c0eaff459db6aae9705118aa4e6b183d1744cf1006538 and preserve the K%128 M=1/M=2 decode route byte-for-byte. Do not use FlyDSL, AITER, CK, weight preshuffling, activation/output memoization, persistent result buffers, or extra dispatches. The primary metric is the counted ratio-of-sums for the 35 captured prefill cases. Zero-weight captured decode, synthetic K%128 decode, and prefill heldout cases are hard gates: every one must pass five-draw live parity and stay at least 0.98x in definitive paired timing. Prefer compact tile-count and N/K-family configuration buckets over exact captured-M routing. Do not repeat the dead ends listed in EXPERIMENT_CONTEXT.md. Bank small reproducible gains with the 0.5% incremental gate, then validate the final candidate with three cache-flushed reversed-order A/B passes and fresh counted-time aggregation.",
+  "op_spec": {
+    "op_kind": "gemm",
+    "language": "triton",
+    "implementation": "Triton prefill with protected HIP/rocWMMA decode extension",
+    "dtype": "fp8_e4m3fn",
+    "output_dtype": "bfloat16",
+    "block_size": [
+      128,
+      128
+    ],
+    "bias": false,
+    "transpose_b": true,
+    "regime": "prefill",
+    "input_dtypes": [
+      "float8_e4m3fn",
+      "float8_e4m3fn",
+      "float32",
+      "float32"
+    ],
+    "scale_dtype": "float32",
+    "accumulation_dtype": "float32",
+    "correctness": {
+      "rtol": 0.01,
+      "atol": 0.01,
+      "random_draws": 5,
+      "fresh_output_required": true
+    },
+    "hardware": {
+      "gfx": "gfx1201",
+      "arch_class": "rdna4",
+      "wave_size": 32,
+      "physical_cu_count": 64,
+      "wgp_count": 32
+    }
+  }
+}
