@@ -14,6 +14,8 @@ Primary references:
 - AMD occupancy guide: https://gpuopen.com/learn/occupancy-explained/
 - rocWMMA supported hardware: https://rocm.docs.amd.com/projects/rocWMMA/en/develop/supported-hardware.html
 - FlyDSL architecture guide: https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
+- GEAK FlyDSL RDNA4 capability/authoring card:
+  [`../../perf_knowledge/languages/flydsl/rdna4.md`](../../perf_knowledge/languages/flydsl/rdna4.md)
 
 ## 0. Detect the actual device
 
@@ -173,6 +175,9 @@ MFMA tile tables, or use `matrix_instr_nonkdim` guidance copied from gfx942/950.
   `FLYDSL_GPU_ARCH=gfx1201` (the GPU lock wrapper does this automatically).
   Release wheels can lag main: target recognition is necessary but only a
   compile/run/parity smoke of the chosen main-branch kernel establishes availability.
+  Before authoring or optimizing, read the GEAK FlyDSL RDNA4 card linked above. It separates the
+  upstream dense path, the parity-tested small-M FP8 prototype, and the still-open broad-prefill
+  work; a generic “gfx1201 supported” badge is not an optimization recipe.
 
 ### Disabled by default
 

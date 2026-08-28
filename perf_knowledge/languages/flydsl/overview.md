@@ -5,11 +5,12 @@ gens: [gfx942, gfx950, gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, int8, fp4_e2m1, mxfp4]
 regimes: [prefill, decode, both]
 status: competitive
-updated: 2026-06-08
+updated: 2026-08-28
 sources:
   - https://github.com/ROCm/FlyDSL
   - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
   - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
+  - big-yellow-duck/FlyDSL@eed78c6d:lib/Dialect/FlyROCDL/GFX120X/MmaAtom.cpp
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
   - https://github.com/ROCm/aiter
   - /sgl-workspace/aiter/aiter/ops/flydsl/gemm_kernels.py
@@ -44,6 +45,11 @@ In GEAK's RDNA4 path, use the standalone `flydsl` package and upstream direct ke
 components. This does not disable FlyDSL. An import/architecture probe alone is not an availability
 test: released wheels may recognize gfx1201 while lagging the Python surface used by main's RDNA GEMM.
 Compile and parity-run that native kernel in a subprocess before admitting the backend.
+
+Support is not the same as maturity. For an evidence-separated capability ledger, gfx120x fragment
+ABI, regime-specific starting structures, synchronization patterns, FP8 block-scale semantics, and
+on-box positive/negative receipts, read [`rdna4.md`](rdna4.md). That card is mandatory for RDNA4
+authoring; the older GEMM guides below were originally written from CDNA/MFMA kernels.
 
 ## Where it fits
 | Use FlyDSL when | Reach elsewhere when |
@@ -99,6 +105,7 @@ For gfx120x, use upstream's GFX120X atoms and `kernels/gemm/rdna_f16_gemm.py`: w
 - [kernel_families.md](kernel_families.md) — HGEMM / small-M / preshuffle / 2-stage MoE / GDR decode.
 
 **Authoring your own `@flyc.kernel`** (ingested from the FlyDSL authoring skill — reference how-to):
+- [rdna4.md](rdna4.md) — gfx120x wave32/WMMA capability ledger, authoring structures, and receipts.
 - [authoring_tile_programming.md](authoring_tile_programming.md) — write a first correct kernel (CuTe-style tile model, the 4 patterns, MFMA reference).
 - [authoring_optimization.md](authoring_optimization.md) — structure-first optimization workflow (fusion → LDS → MFMA-loop → tuning).
 - [authoring_gemm_levers.md](authoring_gemm_levers.md) — GEMM-specific levers (tiling / LDS staging / swizzle / epilogue).

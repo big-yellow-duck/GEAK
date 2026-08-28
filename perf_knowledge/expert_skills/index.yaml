@@ -154,6 +154,30 @@ skills:
       will not match the reduce kernel name -- verify your filter catches both.'
     parity: relaxed
   validation_status: validated
+- id: flydsl_rdna4_fp8_blockscale_small_m
+  file: skills/flydsl_rdna4_fp8_blockscale_small_m/skill.md
+  scope: kernel
+  match:
+    operator:
+    - dense_gemm
+    - scaled_quant_gemm
+    arch_class:
+    - '*'
+    gens:
+    - gfx1201
+    dtypes:
+    - fp8_e4m3
+    regimes:
+    - decode
+    from_backend: hip
+    to_backend: flydsl
+    profile_signature:
+      op_name_regex: rdna4_fp8_block_scaled_mm_decode|w8a8.*block.*scale
+      min_pct_gpu: 0.0
+  expects:
+    isolated_speedup_min: 1.05
+    parity: required
+  validation_status: validated
 - id: flydsl_rewrite_quantized_moe
   file: skills/flydsl_rewrite_quantized_moe/skill.md
   scope: kernel

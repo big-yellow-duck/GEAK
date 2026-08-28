@@ -7,11 +7,13 @@ gens: [gfx942, gfx950, gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, fp4_e2m1, mxfp4]
 regimes: [prefill, decode]
 status: sota
-updated: 2026-06-08
+updated: 2026-08-28
 sources:
   - https://github.com/ROCm/FlyDSL
   - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
   - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
+  - big-yellow-duck/FlyDSL@eed78c6d:lib/Dialect/FlyROCDL/GFX120X/MmaAtom.cpp
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_kernels.py
   - ROCm/aiter@a6bb4993:aiter/tuned_gemm.py
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
@@ -22,6 +24,8 @@ sources:
 > RDNA4 uses standalone FlyDSL main's gfx120x wave32/WMMA path. Do not use the AITER integration
 > described in older sections of this card: GEAK disables AITER on RDNA4. Start from upstream
 > `kernels/gemm/rdna_f16_gemm.py`, use direct `flydsl` imports, and verify `v_wmma*` in generated ISA.
+> Read [`../../../languages/flydsl/rdna4.md`](../../../languages/flydsl/rdna4.md) for the fragment ABI,
+> LDS/pipeline structure, synchronization choices, and measured capability boundaries.
 
 ## TL;DR
 FlyDSL is AMD's independent **Python/MLIR kernel DSL with instruction-level control** — the productivity
@@ -49,6 +53,7 @@ The executor (`flydsl_gemm`) asserts **no scaling** for the hgemm path and fuses
 
 | impl | source | gens/dtypes | measured perf | when best |
 |---|---|---|---|---|
+| Direct gfx120x WMMA GEMM | upstream `kernels/gemm/rdna_f16_gemm.py` | gfx1200/1201; fp16/bf16 → fp32/bf16/fp16 | upstream correctness reference; no universal GEAK speed claim | broad-M RDNA4 seed with 128x128x32, four waves, two padded LDS stages |
 | FlyDSL split-K hgemm | `aiter/ops/flydsl/gemm_kernels.py::flydsl_hgemm` (+ `get_flydsl_splitk_hgemm_kernel_params`) | gfx942/950; bf16, fp8, A4W4/mxfp4 (MoE) | Kimi-K2.5 fused-MoE (FlyDSL): up to **+162% throughput, −69% TPOT, −65% TTFT** with SGLang+AITER, vendor-reported 2025 | mixed-precision / MoE GEMM; new shapes needing fast iteration to near-asm perf |
 
 ## Config space / knobs
@@ -88,7 +93,8 @@ to pick + XCD / scheduling levers) is the gated expert skill `flydsl_fp8_blocksc
 `kernels/gemm/rdna_f16_gemm.py`. Let runtime detection choose the target or pin
 `FLYDSL_GPU_ARCH=gfx1201`; compile/JIT in a subprocess, validate against the frozen oracle, inspect the ISA
 for `v_wmma*`, and bind the validated callable directly at the extracted kernel seam. Do not import AITER
-or deploy an AITER CSV.
+or deploy an AITER CSV. Follow the architecture-specific authoring and verification ladder in
+[`languages/flydsl/rdna4.md`](../../../languages/flydsl/rdna4.md).
 
 **CDNA (`gfx942`/`gfx950`)**: an optional integration is reached through `aiter.tuned_gemm`: a CSV row
 with `libtype=flydsl` plus a `kernelName` that `get_flydsl_splitk_hgemm_kernel_params` resolves and
@@ -140,3 +146,4 @@ AITER_CONFIG_GEMM_BF16=/tmp/fly.csv AITER_LOG_TUNED_CONFIG=1 <launch> ; grep 'li
 - On-box: `/sgl-workspace/aiter/aiter/ops/flydsl/gemm_kernels.py` (`flydsl_hgemm` signature),
   `aiter/tuned_gemm.py` (flydsl branch) — `ROCm/aiter@a6bb4993`.
 - Kimi-K2.5 FlyDSL fused-MoE numbers (+162% tput / −69% TPOT / −65% TTFT): https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
+- RDNA4 capability and on-box receipt ledger: [`../../../languages/flydsl/rdna4.md`](../../../languages/flydsl/rdna4.md)
