@@ -1,5 +1,21 @@
 # Changelog — perf_knowledge build progress
 
+## FlyDSL RDNA4 capability expansion (2026-08-28)
+- Added `languages/flydsl/rdna4.md`, separating framework availability, operator parity, and measured
+  competitiveness. It records gfx120x wave32/v8 WMMA ABI facts, broad-M LDS and small-M register-fed
+  structures, gfx12 synchronization, FP32-per-K128 scale semantics, verification gates, source hashes,
+  and both the positive small-M HIP receipts and negative broad-prefill Triton result.
+- Expanded `scaled_quant_gemm × flydsl` to enumerate gfx1200/gfx1201 + OCP FP8 E4M3 capability while
+  explicitly keeping the AITER/preshuffle/MFMA implementation CDNA-only. This widens discovery without
+  claiming that the unfinished broad-prefill route is SOTA.
+- Updated the generic FlyDSL GEMM guide and dense-GEMM card to branch by architecture before choosing
+  atoms, LDS budgets, scheduler vocabulary, or integration seams.
+- Kernel planning and authoring roles now require the RDNA4 card for gfx120x FlyDSL work. The RDNA4
+  contract test verifies the capability-index entry, evidence vocabulary, cross-links, and role routing.
+- Added the opt-in validated `flydsl_rdna4_fp8_blockscale_small_m` expert recipe for the M1--M64
+  raw-weight HIP→FlyDSL route. Its validation artifact preserves all ten per-route measurements and
+  keeps the losing/marginal M1/M2 routes on HIP; it explicitly does not match broad-M prefill.
+
 ## P0 (2026-06-08) — scaffold
 - Directory skeleton (index, 10–99).
 - index: README, conventions, sourcing_rules, taxonomy, sota_matrix (seed), sota_registry.yaml

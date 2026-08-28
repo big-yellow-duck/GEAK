@@ -132,6 +132,9 @@ analysis below exactly as before.)
      flydsl additionally has the full `authoring_gemm_levers.md` / `authoring_optimization.md` /
      `authoring_tile_programming.md` / `debugging.md` set). The source-backend card alone does NOT teach how
      to write the target — without this the engineer re-implements the new backend blind.
+   - When the detected target is gfx1200/gfx1201 and either the current or target language is FlyDSL,
+     `kk_refs` MUST include `languages/flydsl/rdna4.md`. Do not let a generic FlyDSL capability entry
+     route RDNA4 agents only into CDNA MFMA/AITER material.
    Treat all of this as facts/how-to to *widen* the candidate set — not decisions (see the contract
    above). Do not let it override the per-case data or measurement.
 5. Write `EVAL_DIR/analysis.json` and `EVAL_DIR/codebase_context.md` (human-readable, INCLUDE the

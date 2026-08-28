@@ -4,7 +4,7 @@ kind: reference
 updated: 2026-06-09
 ---
 
-# Sources index — 503 unique URLs across 656 docs
+# Sources index — 511 unique URLs across 659 docs
 
 Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources.py`). Each doc keeps its own inline `## Sources`.
 
@@ -22,6 +22,7 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 - https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-4-architecture-whitepaper.pdf
 - https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-whitepaper.pdf
 - https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna2-white-paper.pdf
+- https://www.amd.com/content/dam/amd/en/documents/radeon-tech-docs/instruction-set-architectures/rdna4-instruction-set-architecture.pdf
 - https://www.amd.com/en/blogs/2025/revolutionizing-mixture-of-experts-performance-10.html
 - https://www.amd.com/en/developer/resources/technical-articles/2026/day-0-support-for-qwen-3-5-on-amd-instinct-gpus.html
 - https://www.amd.com/en/developer/resources/technical-articles/2026/win-on-tco.html
@@ -201,6 +202,10 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 - https://github.com/ROCm/ATOM
 - https://github.com/ROCm/DeepEP
 - https://github.com/ROCm/DeepEP/blob/main/README.md
+- https://github.com/ROCm/FlyDSL
+- https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
+- https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
+- https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
 - https://github.com/ROCm/HIP/issues/3333
 - https://github.com/ROCm/HIP/issues/3667
 - https://github.com/ROCm/MIOpen/blob/develop/CHANGELOG.md
@@ -375,6 +380,7 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 - https://gpuopen.com/learn/amd-lab-notes/amd-lab-notes-matrix-cores-readme/
 - https://gpuopen.com/learn/amd-lab-notes/amd-lab-notes-register-pressure-readme/
 - https://gpuopen.com/learn/optimizing-gpu-occupancy-resource-usage-large-thread-groups/
+- https://gpuopen.com/learn/using_matrix_core_amd_rdna4/
 - https://gpuopen.com/learn/wmma_on_rdna3/
 
 ## guru3d.com
@@ -522,6 +528,7 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 - https://rocm.blogs.amd.com/software-tools-optimization/mi300x-rccl-xgmi/README.html
 - https://rocm.blogs.amd.com/software-tools-optimization/mxfp4-mxfp6-quantization/README.html
 - https://rocm.blogs.amd.com/software-tools-optimization/mxfp4-online-rotation/README.html
+- https://rocm.blogs.amd.com/software-tools-optimization/occupancy-math-mi355x/README.html
 - https://rocm.blogs.amd.com/software-tools-optimization/optimizing-triton-kernel.html
 - https://rocm.blogs.amd.com/software-tools-optimization/optimizing-with-composable-kernel.html
 - https://rocm.blogs.amd.com/software-tools-optimization/primus-moe-package/README.html
@@ -587,6 +594,7 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 - https://rocm.docs.amd.com/projects/rocBLAS/en/latest/
 - https://rocm.docs.amd.com/projects/rocBLAS/en/latest/how-to/what-is-rocblas.html
 - https://rocm.docs.amd.com/projects/rocWMMA/en/develop/api-reference/api-reference-guide.html
+- https://rocm.docs.amd.com/projects/rocWMMA/en/develop/supported-hardware.html
 - https://rocm.docs.amd.com/projects/rocprofiler-compute/en/develop/install/quickstart.html
 - https://rocm.docs.amd.com/projects/rocprofiler-compute/en/latest/how-to/profile/mode.html
 - https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocprofv3.html
@@ -654,4 +662,3 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 
 ## x.com
 - https://x.com/SakanaAILabs/status/1892992938013270019
-

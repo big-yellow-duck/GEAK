@@ -56,7 +56,7 @@ entries:
       - https://github.com/ROCm/FlyDSL
       - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
       - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
-      - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_kernels.py
+      - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
   - operator: dense_gemm
     backend: gluon
     status: sota
@@ -361,8 +361,8 @@ entries:
   - operator: scaled_quant_gemm
     backend: flydsl
     status: sota
-    gens: [gfx942, gfx950]
-    dtypes: [fp8_e4m3_fnuz, int8, fp4_e2m1]
+    gens: [gfx942, gfx950, gfx1200, gfx1201]
+    dtypes: [fp8_e4m3_fnuz, fp8_e4m3, int8, fp4_e2m1]
     regimes: [prefill, decode]
     card: ../operators/scaled_quant_gemm/backends/flydsl.md
     sources:

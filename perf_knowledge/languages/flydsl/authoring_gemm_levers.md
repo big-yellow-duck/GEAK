@@ -1,11 +1,12 @@
 ---
-title: "FlyDSL — GEMM authoring levers (tiling / LDS / MFMA-loop / epilogue)"
+title: "FlyDSL — GEMM authoring levers (tiling / LDS / matrix loop / epilogue)"
 kind: language
-gens: [gfx942, gfx950]
-updated: 2026-06-01
+gens: [gfx942, gfx950, gfx1200, gfx1201]
+updated: 2026-08-28
 source_commit: AMD-AGI/GEAK@c0a1f937
 sources:
   - AMD-AGI/GEAK@c0a1f937:src/minisweagent/skills/flydsl/docs/flydsl_gemm_optimization.md
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
 ---
 
 > **Reference (how-to), not a verdict.** Ingested from the FlyDSL authoring skill. GEMM-specific
@@ -14,6 +15,22 @@ sources:
 > [`../../operators/dense_gemm/backends/flydsl.md`](../../operators/dense_gemm/backends/flydsl.md).
 
 # FlyDSL GEMM optimization
+
+## Architecture fork comes first
+
+This guide's original examples and scheduler vocabulary are CDNA/MFMA-shaped. On `gfx1200` or
+`gfx1201`, first read [`rdna4.md`](rdna4.md) and reinterpret every “MFMA” below as the matrix-loop
+role, not as an instruction or tile prescription. RDNA4 uses wave32 WMMA, WGP scheduling, a 64 KiB
+portable workgroup LDS cap, and GDDR/Infinity Cache. The following do not transfer from CDNA:
+
+- wave64 work decomposition or MFMA/AGPR occupancy tables;
+- gfx950 160 KiB LDS assumptions;
+- XCD grid swizzles;
+- AITER-hosted FlyDSL or preshuffled CDNA weight layouts;
+- `v_mfma*` ISA checks—require `v_wmma*` instead.
+
+The structure-first ordering in this document still applies. The RDNA4 card supplies the atom ABI,
+starting tiles, synchronization, operator capability boundaries, and measured receipts.
 
 ## Overview
 
@@ -33,7 +50,7 @@ efficiency, LDS layout, or epilogue/store strategy.
 Use this guide when most of the optimization discussion is about:
 
 - `tile_m` / `tile_n` / `tile_k` selection
-- MFMA instruction shape and repeat layout
+- MFMA (CDNA) or WMMA (RDNA) instruction shape and repeat layout
 - LDS ping-pong or multi-stage buffering
 - XOR swizzle or other bank-conflict avoidance
 - global-load / LDS-load / MFMA overlap
@@ -80,8 +97,8 @@ Rule of thumb:
 - High `s_waitcnt vmcnt(0)` before MFMA -> global-load latency exposed
 - High `s_waitcnt lgkmcnt(0)` or `ds_*` stall -> LDS latency or bank conflicts
 - High `s_barrier` stall -> synchronization overhead
-- Low MFMA density / many bubbles -> schedule or loop-shape problem
-- Good MFMA density but poor overall speed -> tile shape, occupancy, or store path
+- Low matrix-instruction density / many bubbles -> schedule or loop-shape problem
+- Good MFMA/WMMA density but poor overall speed -> tile shape, occupancy, or store path
 
 ### 3. Prioritize high-impact structure first
 
@@ -89,7 +106,7 @@ Tune in this order:
 
 1. **Tile strategy**
 2. **LDS staging and overlap**
-3. **MFMA-loop scheduling**
+3. **MFMA/WMMA-loop scheduling**
 4. **Epilogue/store strategy**
 5. **Final parameter tuning**
 
@@ -104,7 +121,7 @@ pipeline, tiling, or memory-layout problems.
 
 Check these constraints first:
 
-- `tile_m` is a multiple of the MFMA M dimension
+- `tile_m` is a multiple of the selected MFMA/WMMA M dimension
 - `tile_n` is large enough to keep waves busy and maps cleanly to wave/workgroup partitioning
 - `tile_k * elem_bytes` aligns with the kernel's load and MFMA packing strategy
 - total per-stage LDS fits the target arch budget
@@ -120,7 +137,7 @@ benchmarked range instead of overfitting to one hotspot shape.
 
 For GEMM kernels, ask whether one of these is true:
 
-- an operand tile is reread many times by MFMA -> stage it through LDS
+- an operand tile is reread many times by matrix instructions -> stage it through LDS
 - global-load latency is exposed -> prefetch earlier
 - one LDS buffer is idle while compute runs -> consider ping-pong staging
 
@@ -186,7 +203,7 @@ Consider a shuffle/reorder epilogue when:
 | High `s_waitcnt vmcnt(0)` before MFMA | global-load latency exposed | move next-tile loads earlier; revisit prefetch distance |
 | High `s_waitcnt lgkmcnt(0)` / `ds_*` stall | LDS latency or bank conflict | inspect LDS layout, swizzle, padding, write-read distance |
 | High `s_barrier` stall | too many sync points | reduce stage boundaries or merge dependent phases |
-| Low MFMA ratio in hot loop | schedule overhead or loop shape | count MFMA vs memory ops and simplify loop body |
+| Low MFMA/WMMA ratio in hot loop | schedule overhead or loop shape | count matrix vs memory ops and simplify loop body |
 | Speed good on one shape, bad on nearby shapes | brittle tile choice | re-check tile divisibility, occupancy, and edge handling |
 | Throughput drops after adding prefetch | register pressure too high | reduce carried state or use a lighter staging strategy |
 
@@ -229,4 +246,5 @@ After each meaningful change:
 - AMD CDNA3 ISA (MFMA shapes, LDS banks): https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-mi300-cdna3-instruction-set-architecture.pdf
 - Matrix Cores on CDNA (MFMA + LDS staging for GEMM): https://rocm.blogs.amd.com/software-tools-optimization/matrix-cores-cdna/README.html
 - CDNA4 GEMM kernels (tiling / epilogue): https://rocm.blogs.amd.com/software-tools-optimization/cdna4-gemm-kernels/README.html
+- RDNA4 FlyDSL path and receipts: [`rdna4.md`](rdna4.md)
 - Cross-refs: [`authoring_optimization.md`](authoring_optimization.md) · operator card [`../../operators/dense_gemm/backends/flydsl.md`](../../operators/dense_gemm/backends/flydsl.md) · library knobs [`knobs.md`](knobs.md)
