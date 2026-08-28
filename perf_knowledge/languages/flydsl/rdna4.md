@@ -195,6 +195,7 @@ not evidence that broad-M FlyDSL beats Triton.
 
 ## Cross-links
 
+- Deferred parity and campaign prerequisites: [`rdna4_campaign_readiness_backlog.md`](rdna4_campaign_readiness_backlog.md)
 - Hardware model: `kernel_workflow/knowledge/amd_rdna4.md`
 - Generic FlyDSL model: [`overview.md`](overview.md)
 - GEMM workflow: [`authoring_gemm_levers.md`](authoring_gemm_levers.md)
