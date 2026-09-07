@@ -70,12 +70,15 @@ ok(rdnaDoc.includes('perf_knowledge/languages/flydsl/rdna4.md'),
 const scaledFlydslCap = capabilityIndex.match(
   /- operator: scaled_quant_gemm\n\s+backend: flydsl\n([\s\S]*?)(?=\n  - operator:|$)/);
 ok(scaledFlydslCap, 'scaled-quant FlyDSL capability entry exists');
-for (const fact of ['gfx1200', 'gfx1201', 'fp8_e4m3']) {
-  ok(scaledFlydslCap[1].includes(fact), `scaled-quant FlyDSL capability includes ${fact}`);
+for (const unsafeFact of ['gfx1200', 'gfx1201']) {
+  ok(!scaledFlydslCap[1].includes(unsafeFact),
+     `scaled-quant machine metadata avoids unsupported cross-product ${unsafeFact}`);
 }
+ok(!/dtypes: \[[^\n]*\bfp8_e4m3(?:,|\])/.test(scaledFlydslCap[1]),
+   'scaled-quant machine metadata avoids unsupported exact dtype fp8_e4m3');
 for (const fact of [
   'wave32', '16x16x16', 'v_wmma', '64 KiB', 'FP32 K128', 'broad-prefill',
-  'eed78c6dd93fd297765632861587d9c3be82e0fc', '0.9895x',
+  '3c03e97919bedbeb95ea803baed089c3725eabb6', '0.9895x',
 ]) {
   ok(flydslRdna.includes(fact), `FlyDSL RDNA4 card records ${fact}`);
 }

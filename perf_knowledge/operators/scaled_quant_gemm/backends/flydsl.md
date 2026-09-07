@@ -3,18 +3,19 @@ title: scaled_quant_gemm on FlyDSL — SOTA card
 kind: sota_card
 operator: scaled_quant_gemm
 backend: flydsl
-gens: [gfx942, gfx950, gfx1200, gfx1201]
-dtypes: [fp8_e4m3_fnuz, fp8_e4m3, int8, fp4_e2m1]
+gens: [gfx942, gfx950]
+dtypes: [fp8_e4m3_fnuz, int8, fp4_e2m1]
 regimes: [prefill, decode]
 status: sota
-updated: 2026-08-28
+updated: 2026-09-07
 sources:
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/kernels/preshuffle_gemm.py
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_tune/flydsl_gemm_a8w8_bpreshuffle_common.py
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/test_flydsl_moe_a4w4.py
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_kernels.py
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
-  - big-yellow-duck/FlyDSL@eed78c6d:lib/Dialect/FlyROCDL/GFX120X/MmaAtom.cpp
+  - https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_fp8_preshuffle_gemm.py
   - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
 ---
 
@@ -27,7 +28,8 @@ sources:
 
 ## RDNA4 capability and maturity
 
-The gfx120x compiler path can lower `16x16x16` FP8 E4M3FN WMMA with FP32 accumulation. An on-box
+The upstream gfx120x compiler path lowers `16x16x16` FP8/BF8 WMMA with FP32 accumulation as of
+`ROCm/FlyDSL@3c03e979`. An on-box
 R9700 prototype also validated a vLLM-compatible raw-weight block-scale contract for M1--M64:
 contiguous A, arbitrary padded B row stride, FP32 A/B scales per K128, FP32 accumulation, and one BF16
 conversion. It passed random parity, route boundaries, stream, fresh-output, and graph-replay tests.
@@ -39,6 +41,13 @@ Triton under a timing run that was itself flagged for a missing receipt. The act
 - decode/small-M has a real register-fed FP8 WMMA starting implementation;
 - broad prefill needs an LDS-tiled, cross-wave operand-reuse pipeline before scheduler micro-tuning;
 - performance claims remain per-shape and require a new paired receipt.
+
+Upstream also ships `rdna_fp8_preshuffle_gemm.py`, but its contract is per-token A scaling,
+per-channel B scaling, and preshuffled B. It is a useful scheduling reference, not a drop-in
+implementation of raw-B arbitrary-FP32 K128 blockscale. Because the generated capability registry
+cannot represent two architecture-specific variants under one backend, this card's machine-readable
+frontmatter remains conservative and CDNA-only; the experimental RDNA route is documented here and
+in the architecture card without advertising an unsafe cross-product.
 
 ## TL;DR
 On CDNA, the **scaled** (dequant-fused) GEMM path is where FlyDSL is SOTA: a separate `preshuffle_gemm` kernel family
@@ -74,7 +83,8 @@ and emits `rocdl.mfma_scale_f32_16x16x128_f8f6f4` with `cbsz/blgp = 4` and `pack
 
 | impl | source | gens/dtypes | measured perf | when best |
 |---|---|---|---|---|
-| gfx120x raw-weight software-scale WMMA | on-box RDNA4 prototype; atom in `big-yellow-duck/FlyDSL@eed78c6d` | gfx1200/1201; OCP fp8_e4m3fn + arbitrary FP32 K128 scales | M1--M64 parity and HIP comparisons; broad-M Triton win not established | decode/small-M seed; broad-M requires a new LDS reuse implementation |
+| Upstream gfx120x FP8 preshuffle GEMM | `kernels/gemm/rdna_fp8_preshuffle_gemm.py`; atom in `ROCm/FlyDSL@3c03e979` | gfx1200/1201 lowering; OCP fp8_e4m3fn, per-token/per-channel scales, preshuffled B | applicable upstream RDNA tests passed on gfx1201 | scheduling/reference route when its layout and scale contract match |
+| gfx120x raw-weight software-scale WMMA | uncommitted on-box RDNA4 prototype; upstream atom | gfx1200/1201; OCP fp8_e4m3fn + arbitrary FP32 K128 scales | M1--M64 parity and HIP comparisons; broad-M Triton win not established | decode/small-M seed; broad-M requires a new LDS reuse implementation |
 | A8W8 preshuffle GEMM | `preshuffle_gemm.py::compile_preshuffle_gemm_a8` | gfx942/950; fp8/int8 → bf16/fp16 | no isolated flydsl number; folded into aiter a8w8 bpreshuffle GEMM tune | per-tensor/row fp8/int8 GEMM with preshuffled W |
 | W4 / MXFP4 block-scaled GEMM | `preshuffle_gemm.py::compile_preshuffle_gemm_w4` (→ a8 with fp4) | **gfx950 only**; fp4 (per_1x32) → bf16/fp16 | Kimi-K2.5 fused-MoE (FlyDSL, vendor): up to **+162% throughput, −69% TPOT, −65% TTFT** (SGLang+AITER, 2025) | MXFP4 MoE / dense low-bit GEMM |
 

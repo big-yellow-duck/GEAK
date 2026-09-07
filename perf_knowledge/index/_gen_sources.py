@@ -21,5 +21,7 @@ for dom in sorted(urls):
     out.append(f"## {dom}")
     for u in sorted(urls[dom]): out.append(f"- {u}")
     out.append("")
+while out and out[-1] == "":
+    out.pop()
 open(os.path.join(KK,"index","sources_index.md"),"w",encoding="utf-8").write("\n".join(out)+"\n")
 print(f"OK: {alln} urls / {nfiles} docs -> index/sources_index.md")

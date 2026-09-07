@@ -169,10 +169,13 @@ MFMA tile tables, or use `matrix_instr_nonkdim` guidance copied from gfx942/950.
 - **Triton AMD**: supported for kernels that compile and pass the immutable
   oracle. Tune wave32 geometry; never inherit the CDNA MFMA/64-lane defaults.
 - **FlyDSL main**: supported independently of AITER. Upstream has a gfx120x
-  wave32/WMMA lowering, native architecture detection, an RDNA GEMM test, and
+  wave32/WMMA lowering, native architecture detection, RDNA GEMM tests, and
   lists Radeon AI PRO R9700/gfx1201 among verified platforms. Prefer direct
   `flydsl` APIs and upstream `kernels/gemm/rdna_f16_gemm.py` patterns. Set
   `FLYDSL_GPU_ARCH=gfx1201` (the GPU lock wrapper does this automatically).
+  FP8/BF8 gfx120x atom support is upstream in `ROCm/FlyDSL@3c03e979`; its atom
+  tests passed 6/6 and the 26 applicable RDNA GEMM cases passed on the local
+  R9700. Treat gfx1200 as compile-supported until a physical gfx1200 receipt exists.
   Release wheels can lag main: target recognition is necessary but only a
   compile/run/parity smoke of the chosen main-branch kernel establishes availability.
   Before authoring or optimizing, read the GEAK FlyDSL RDNA4 card linked above. It separates the

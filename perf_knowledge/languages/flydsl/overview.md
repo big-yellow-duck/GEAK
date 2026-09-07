@@ -5,12 +5,13 @@ gens: [gfx942, gfx950, gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, int8, fp4_e2m1, mxfp4]
 regimes: [prefill, decode, both]
 status: competitive
-updated: 2026-08-28
+updated: 2026-09-07
 sources:
   - https://github.com/ROCm/FlyDSL
   - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
   - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
-  - big-yellow-duck/FlyDSL@eed78c6d:lib/Dialect/FlyROCDL/GFX120X/MmaAtom.cpp
+  - https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_fp8_preshuffle_gemm.py
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
   - https://github.com/ROCm/aiter
   - /sgl-workspace/aiter/aiter/ops/flydsl/gemm_kernels.py
@@ -39,6 +40,11 @@ Upstream main lists Radeon AI PRO R9700 (`gfx1201`) as a verified platform and p
 `gfx120*` **wave32/WMMA** path plus RDNA GEMM tests/examples. Use `get_rocm_arch()` / `is_rdna_arch()`
 and `get_warp_size()` rather than hard-coding CDNA behavior. gfx120x uses the new v8-operand WMMA ABI;
 it is not compatible with gfx11 fragment packing and is not gfx1250.
+
+The gfx120x FP8/BF8 atom is upstream as of `ROCm/FlyDSL@3c03e979`. On the local R9700, its device
+suite passed 6/6 and the applicable RDNA GEMM cases passed 26/26 (71 gfx11-only skips). Upstream's FP8
+preshuffle kernel uses per-token/per-channel scales and preshuffled B; it does not replace GEAK's
+raw-B, arbitrary-FP32 K128 blockscale contract.
 
 In GEAK's RDNA4 path, use the standalone `flydsl` package and upstream direct kernels. **Do not import
 `aiter.ops.flydsl`**: AITER is disabled on RDNA4 due to its still-experimental, crash-prone non-FlyDSL
@@ -93,7 +99,8 @@ gfx942, gfx950, and gfx1201. The older AITER wrapper notes below are CDNA integr
 - LDS budget from `addressable_lds_bytes_for_gfx`: **65536 B (gfx942)**, **163840 B (gfx950)**.
 - ROCDL exposes both FNUZ and OCP MFMA + block-scaled `mfma_scale_f32_16x16x128_f8f6f4` (CDNA4 MXFP).
 
-For gfx120x, use upstream's GFX120X atoms and `kernels/gemm/rdna_f16_gemm.py`: wave32, WMMA, a
+For gfx120x, use upstream's GFX120X atoms and the `rdna_f16_gemm.py` / `rdna_fp8_preshuffle_gemm.py`
+references: wave32, WMMA, a
 64 KiB per-CU LDS model, and gfx12-specific fragment ABI. Do not apply the three CDNA wrapper bullets above.
 
 ## Deep-dive map
@@ -117,6 +124,7 @@ For gfx120x, use upstream's GFX120X atoms and `kernels/gemm/rdna_f16_gemm.py`: w
 - aiter (engine that hosts FlyDSL): https://github.com/ROCm/aiter
 - Standalone FlyDSL main (gfx1201 verified): https://github.com/ROCm/FlyDSL
 - Architecture guide (gfx120x wave32/WMMA): https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
+- Upstream gfx120x FP8/BF8 atom: https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
 - FlyDSL HGEMM API & arch gating: ROCm/aiter@/sgl-workspace/aiter:aiter/ops/flydsl/gemm_kernels.py
 - ROCDL intrinsic surface (mfma/sched/buffer_load_lds): flydsl 0.1.5 @ /opt/venv/lib/python3.10/site-packages/flydsl/expr/rocdl/
 - DSL body (mfma/swizzle/sched primitives in a real kernel): ROCm/aiter@/sgl-workspace/aiter:aiter/ops/flydsl/kernels/splitk_hgemm.py

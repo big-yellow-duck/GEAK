@@ -12,6 +12,7 @@ tolerance: {rtol: 0.02, atol: 0.0625}
 math_contract: complete each K128 FP8 dot in FP32, multiply arbitrary FP32 A/B scales, accumulate FP32, cast once to BF16
 source:
   flydsl_commit: eed78c6dd93fd297765632861587d9c3be82e0fc
+  atom_upstream_commit: 3c03e97919bedbeb95ea803baed089c3725eabb6
   kernel_sha256: ea5eec5ee3a7d7d5b1bfa1081ef2fa82d25b4f25e139d709942ebfd209bcabd1
   sync_sha256: 5ceeff9d76d8181ca5279a904dca79c6c5c69a3a55bf4b4e07659e5cb50e3661
   device_test_sha256: 578fb0411b9f94a36c39713052092c9384a9cbe347b0c7df82f774e78744b4f8

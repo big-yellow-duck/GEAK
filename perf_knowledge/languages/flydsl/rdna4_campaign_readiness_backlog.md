@@ -5,13 +5,14 @@ gens: [gfx1200, gfx1201]
 dtypes: [fp8_e4m3]
 regimes: [prefill, decode]
 status: deferred
-updated: 2026-08-28
+updated: 2026-09-07
 ---
 
 # RDNA4 FlyDSL campaign-readiness backlog
 
 This records the remaining work identified by the 2026-08-28 audit of
-`feat/flydsl-rdna4-capabilities`. The existing RDNA4 material is sufficient for architecture-aware
+`feat/flydsl-rdna4-capabilities`, updated after syncing GEAK and current upstream FlyDSL on
+2026-09-07. The existing RDNA4 material is sufficient for architecture-aware
 agent reasoning and controlled gfx1201 small-M authoring. It is not yet equivalent to CDNA in
 clean-checkout reproducibility, validated recipe breadth, or broad-M performance evidence.
 
@@ -24,25 +25,28 @@ competitive RDNA4 FP8 GEAK campaign explicit and testable.
 |---|---|---|
 | Architecture model | pass | wave32, WGP versus CU, gfx120x v8 WMMA fragments, LDS limits, OCP FP8, and non-transferable CDNA assumptions are documented |
 | Agent routing | pass | planning and author roles require `languages/flydsl/rdna4.md` for gfx1200/gfx1201 FlyDSL work |
+| Upstream FP8/BF8 atom | pass | merged in `ROCm/FlyDSL@3c03e979`; atom suite passed 6/6 on the local gfx1201 R9700 |
+| Upstream RDNA GEMM suite | pass on gfx1201 | 26 applicable tests passed; 71 gfx11-only cases skipped; no physical gfx1200 receipt |
 | FP8 K128 numerical contract | pass | arbitrary FP32 A/B scales are applied to completed K128 FP32 partials before one BF16 cast |
 | Small-M gfx1201 recipe | pass, narrow | one validated M1--M64 HIP-to-FlyDSL recipe; M1/M2 retain HIP fallback |
 | Broad-M / M256 recipe | open | no tracked LDS-tiled FlyDSL implementation or validated Triton-beating receipt |
 | Reproducible source | blocked | the raw-weight block-scale operator, sync helper, tests, and benchmark are an uncommitted on-box snapshot |
-| Bootstrap | blocked | `ensure_flydsl` matches gfx942/gfx950 and builds a CDNA pin rather than the gfx120x FP8 fork |
+| Bootstrap | blocked | `ensure_flydsl` matches gfx942/gfx950 and builds an older CDNA pin rather than a revision containing upstream gfx120x FP8/BF8 support |
 | Capability breadth | not at CDNA parity | CDNA has 14 indexed FlyDSL operator families and six validated performance recipes; RDNA4 has two families and one gfx1201 recipe |
-| Machine metadata | needs correction | combined generation/dtype lists can form false cross-products and globally mark experimental RDNA routes as `sota` |
+| Machine metadata | conservative | combined generation/dtype cross-products were removed; the current one-record registry cannot safely advertise the experimental RDNA scaled route separately from CDNA |
 | Measurement provenance | partial | small-M route timings exist, but broad-M ISA/resource/trace receipts are not stored as a reproducible artifact bundle |
 
 ## P0 — finish before launching a competitive GEAK campaign
 
-### 1. Make the FlyDSL fork self-contained
+### 1. Make the custom raw-weight operator self-contained
 
 - Commit and push `kernels/gemm/rdna4_fp8_blockscale.py`.
 - Commit and push `kernels/common/gfx12_sync.py`.
 - Commit and push the parity/router tests and performance benchmark.
 - Preserve the recorded snapshot hashes in the commit or migration note and confirm the committed
   files reproduce them, or document every intentional delta.
-- Pin GEAK to the resulting immutable FlyDSL commit rather than to an on-box working tree.
+- Base it on an immutable upstream FlyDSL revision containing `3c03e979`; use a custom fork only for
+  operator or synchronization work not yet accepted upstream.
 
 Acceptance: a fresh clone contains every source named by the small-M skill and runs its complete
 verification ladder without copying files from the R9700 container.
@@ -51,15 +55,19 @@ verification ladder without copying files from the R9700 container.
 
 - Add a gfx1200/gfx1201 dependency skill or extend `ensure_flydsl` with an architecture-specific pin.
 - Do not admit an arbitrary installed package solely because its version is at least `0.2.2`.
-- Verify the exact gfx120x FP8 atom/API by compiling and running the device atom test.
+- Pin an upstream revision containing `3c03e979` and verify the exact gfx120x FP8/BF8 atom/API by
+  compiling and running the device atom test.
 - Run operator parity, padded-stride, explicit-stream, fresh-output, changed-input, and graph-replay
   checks before exposing FlyDSL to GEAK agents.
 - Inspect emitted ISA for `v_wmma_f32_16x16x16_fp8_fp8` and reject scalar/emulated FP8 dot paths.
 
 Acceptance: the bootstrap succeeds from a clean ROCm container, writes a reusable environment file,
-and proves the exact fork rather than only `import flydsl`.
+and proves the pinned upstream revision plus any custom operator patch rather than only `import flydsl`.
 
-### 3. Split machine-readable CDNA and RDNA4 capability records
+### 3. Add first-class variant support to machine-readable capability records
+
+The unsafe cross-product is fixed for now by keeping the scaled-quant FlyDSL registry entry CDNA-only.
+The human card still documents the experimental RDNA path. To advertise it to machine queries:
 
 - Avoid one frontmatter record whose `gens` and `dtypes` imply a Cartesian product.
 - Advertise gfx120x only for OCP `fp8_e4m3` and the formats actually compiled on that target.
@@ -69,16 +77,18 @@ and proves the exact fork rather than only `import flydsl`.
 - Ensure generated capability/SOTA source lists include the RDNA4 source commit rather than only
   CDNA AITER files.
 
-Acceptance: a machine query for gfx1201 + FP8 returns the direct RDNA path and correct sources, while
-queries for gfx1201 + FNUZ/FP4 do not select unsupported FlyDSL routes.
+Acceptance: after the registry can represent backend variants, a machine query for gfx1201 + FP8
+returns the direct RDNA path and correct sources, while queries for gfx1201 + FNUZ/FP4 do not select
+unsupported FlyDSL routes. Until then, returning no RDNA scaled-quant FlyDSL candidate is safer than
+returning a false match.
 
-### 4. Classify current upstream RDNA FP8 material
+### 4. Current upstream RDNA FP8 material — completed 2026-09-07
 
-- Add upstream `kernels/gemm/rdna_fp8_preshuffle_gemm.py` as a small-M scheduling reference.
-- State explicitly that its per-token/per-channel, preshuffled-weight contract is not the vLLM raw-B,
+- Added upstream `kernels/gemm/rdna_fp8_preshuffle_gemm.py` as a scheduling reference.
+- Documented that its per-token/per-channel, preshuffled-weight contract is not the vLLM raw-B,
   arbitrary-FP32 K128 block-scale contract.
-- Reconcile the low-level direct `rocdl.wmma` FP8 path with the fork's higher-level gfx120x FP8 atom
-  extension so agents choose the intended API deliberately.
+- Replaced the fork-only atom dependency with upstream `ROCm/FlyDSL@3c03e979`, which contains the
+  higher-level gfx120x FP8/BF8 atom and its lowering tests.
 
 Acceptance: agents can reuse current upstream load/scheduling ideas without silently changing the
 operator layout or scale semantics.
@@ -132,7 +142,8 @@ The RDNA4 FlyDSL prerequisite is complete when all of the following hold:
 
 - every cited source and test is committed and pinned;
 - a fresh-container bootstrap proves the exact gfx120x FP8 path;
-- capability metadata cannot cross-match CDNA-only formats or maturity claims;
+- capability metadata cannot cross-match CDNA-only formats or maturity claims, and variant-aware
+  metadata exists before machine-advertising the RDNA scaled route;
 - the upstream RDNA FP8 reference is classified without changing the target contract;
 - a receipt-bearing, correct M256 FlyDSL kernel beats Triton by more than 1.01x while every hard gate
   remains at least 0.98x;

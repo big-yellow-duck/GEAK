@@ -71,9 +71,10 @@ retains the HIP incumbent for those routes until a fresh receipt says otherwise.
 
 1. Freeze the HIP callable and a FP32-per-K128 reference. Record M/N/K, B row stride, current stream,
    output allocation, and graph-capture behavior.
-2. Build against standalone FlyDSL with the gfx120x FP8 atom from
-   `big-yellow-duck/FlyDSL@eed78c6d`. Set `FLYDSL_GPU_ARCH` to the detected gfx target. Never import
-   `aiter.ops.flydsl`.
+2. Build against standalone upstream FlyDSL at a revision containing the gfx120x FP8/BF8 atom from
+   `ROCm/FlyDSL@3c03e979`. Set `FLYDSL_GPU_ARCH` to the detected gfx target. Never import
+   `aiter.ops.flydsl`. The validation receipt below used the atom's pre-upstream fork commit; the
+   custom operator itself must still be checked in before this recipe is clean-clone reproducible.
 3. Implement one coarse router covering adjacent shapes:
    - M4/cache-resident: 64 threads, two waves, N64;
    - M5--M16: 128 threads, four waves, N128;
@@ -117,7 +118,9 @@ retains the HIP incumbent for those routes until a fresh receipt says otherwise.
 
 ## Sources
 
-- `big-yellow-duck/FlyDSL@eed78c6dd93fd297765632861587d9c3be82e0fc` — gfx120x FP8 WMMA atom.
+- `ROCm/FlyDSL@3c03e97919bedbeb95ea803baed089c3725eabb6` — upstream gfx120x FP8/BF8 WMMA atom.
+- `big-yellow-duck/FlyDSL@eed78c6dd93fd297765632861587d9c3be82e0fc` — historical pre-upstream
+  atom revision used by the 2026-08-27 performance receipt.
 - On-box kernel snapshot SHA-256
   `ea5eec5ee3a7d7d5b1bfa1081ef2fa82d25b4f25e139d709942ebfd209bcabd1`.
 - On-box gfx12 synchronization helper SHA-256

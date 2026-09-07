@@ -4,16 +4,16 @@ kind: sota_card
 operator: dense_gemm
 backend: flydsl
 gens: [gfx942, gfx950, gfx1200, gfx1201]
-dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, fp4_e2m1, mxfp4]
+dtypes: [bf16, fp16]
 regimes: [prefill, decode]
-status: sota
-updated: 2026-08-28
+status: competitive
+updated: 2026-09-07
 sources:
   - https://github.com/ROCm/FlyDSL
   - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
   - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
   - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
-  - big-yellow-duck/FlyDSL@eed78c6d:lib/Dialect/FlyROCDL/GFX120X/MmaAtom.cpp
+  - https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_kernels.py
   - ROCm/aiter@a6bb4993:aiter/tuned_gemm.py
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html

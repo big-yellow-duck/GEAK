@@ -3,12 +3,12 @@
 AUTO-GENERATED from per-card frontmatter (`index/_gen_registry.py`). Each cell links to the SOTA card.
 Legend: 🟢 sota · 🟡 competitive · 🧪 experimental · 🟤 legacy · ⚪ na · `·` no card.
 
-Coverage: **54 operators**, **226 backend cards**.
+Coverage: **54 operators**, **227 backend cards**.
 
 ## GEMM
 | operator | triton | flydsl | hip | ck | asm | tilelang | gluon | hipkittens | rocwmma | aiter | hipblaslt |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| [dense_gemm](../operators/dense_gemm/overview.md) | [🟡](../operators/dense_gemm/backends/triton.md) | [🟢](../operators/dense_gemm/backends/flydsl.md) | [🟡](../operators/dense_gemm/backends/hip.md) | [🟡](../operators/dense_gemm/backends/ck.md) | [🟢](../operators/dense_gemm/backends/asm.md) | [🟡](../operators/dense_gemm/backends/tilelang.md) | [🟢](../operators/dense_gemm/backends/gluon.md) | [🟢](../operators/dense_gemm/backends/hipkittens.md) | [🟤](../operators/dense_gemm/backends/rocwmma.md) | [🟢](../operators/dense_gemm/backends/aiter.md) | [🟢](../operators/dense_gemm/backends/hipblaslt.md) |
+| [dense_gemm](../operators/dense_gemm/overview.md) | [🟡](../operators/dense_gemm/backends/triton.md) | [🟡](../operators/dense_gemm/backends/flydsl.md) | [🟡](../operators/dense_gemm/backends/hip.md) | [🟡](../operators/dense_gemm/backends/ck.md) | [🟢](../operators/dense_gemm/backends/asm.md) | [🟡](../operators/dense_gemm/backends/tilelang.md) | [🟢](../operators/dense_gemm/backends/gluon.md) | [🟢](../operators/dense_gemm/backends/hipkittens.md) | [🟤](../operators/dense_gemm/backends/rocwmma.md) | [🟢](../operators/dense_gemm/backends/aiter.md) | [🟢](../operators/dense_gemm/backends/hipblaslt.md) |
 | [batched_gemm](../operators/batched_gemm/overview.md) | [🟡](../operators/batched_gemm/backends/triton.md) | · | [🟤](../operators/batched_gemm/backends/hip.md) | [🟡](../operators/batched_gemm/backends/ck.md) | [🟡](../operators/batched_gemm/backends/asm.md) | · | · | · | · | [🟢](../operators/batched_gemm/backends/aiter.md) | [🟢](../operators/batched_gemm/backends/hipblaslt.md) |
 | [grouped_gemm_moe](../operators/grouped_gemm_moe/overview.md) | [🟡](../operators/grouped_gemm_moe/backends/triton.md) | [🟢](../operators/grouped_gemm_moe/backends/flydsl.md) | [🟡](../operators/grouped_gemm_moe/backends/hip.md) | [🟡](../operators/grouped_gemm_moe/backends/ck.md) | · | [🧪](../operators/grouped_gemm_moe/backends/tilelang.md) | · | · | · | [🟢](../operators/grouped_gemm_moe/backends/aiter.md) | · |
 | [splitk_streamk_gemm](../operators/splitk_streamk_gemm/overview.md) | [🟢](../operators/splitk_streamk_gemm/backends/triton.md) | [🟡](../operators/splitk_streamk_gemm/backends/flydsl.md) | [🟡](../operators/splitk_streamk_gemm/backends/hip.md) | [🟡](../operators/splitk_streamk_gemm/backends/ck.md) | [🟡](../operators/splitk_streamk_gemm/backends/asm.md) | · | · | · | · | · | [🟡](../operators/splitk_streamk_gemm/backends/hipblaslt.md) |

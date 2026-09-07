@@ -47,9 +47,9 @@ entries:
       - ROCm/aiter@a6bb4993:csrc/ck_gemm_a8w8/gemm_a8w8.cu
   - operator: dense_gemm
     backend: flydsl
-    status: sota
+    status: competitive
     gens: [gfx942, gfx950, gfx1200, gfx1201]
-    dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, fp4_e2m1, mxfp4]
+    dtypes: [bf16, fp16]
     regimes: [prefill, decode]
     card: ../operators/dense_gemm/backends/flydsl.md
     sources:
@@ -361,8 +361,8 @@ entries:
   - operator: scaled_quant_gemm
     backend: flydsl
     status: sota
-    gens: [gfx942, gfx950, gfx1200, gfx1201]
-    dtypes: [fp8_e4m3_fnuz, fp8_e4m3, int8, fp4_e2m1]
+    gens: [gfx942, gfx950]
+    dtypes: [fp8_e4m3_fnuz, int8, fp4_e2m1]
     regimes: [prefill, decode]
     card: ../operators/scaled_quant_gemm/backends/flydsl.md
     sources:
@@ -734,7 +734,6 @@ entries:
     regimes: [training]
     card: ../operators/mla_attention/backends/flydsl.md
     sources:
-      - Attention-Kernels/geak_trans_py2flydsl/fmha_backward/FMHA_BWD_FlyDSL_Skills.md
       - https://arxiv.org/abs/2511.08083
   - operator: mla_attention
     backend: hip

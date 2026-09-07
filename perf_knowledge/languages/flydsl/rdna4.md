@@ -5,11 +5,12 @@ gens: [gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3]
 regimes: [prefill, decode, both]
 status: experimental
-updated: 2026-08-28
+updated: 2026-09-07
 sources:
   - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
   - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
-  - big-yellow-duck/FlyDSL@eed78c6d:lib/Dialect/FlyROCDL/GFX120X/MmaAtom.cpp
+  - https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_fp8_preshuffle_gemm.py
   - https://gpuopen.com/learn/using_matrix_core_amd_rdna4/
   - https://www.amd.com/content/dam/amd/en/documents/radeon-tech-docs/instruction-set-architectures/rdna4-instruction-set-architecture.pdf
 ---
@@ -20,10 +21,11 @@ This is the RDNA4 companion to the CDNA-oriented FlyDSL authoring material. Read
 detected target is `gfx1200` or `gfx1201`; do not translate the MFMA/wave64 recipes mechanically.
 
 The short version: the framework and lowering path are real, but capability, correctness coverage,
-and performance maturity are separate facts. Upstream has a native wave32/WMMA dense-GEMM path. The
-FP8 WMMA atom and a raw-weight block-scaled FP8 prototype have also been exercised on an R9700, but
-the broad-prefill kernel is not yet as mature as the tuned CDNA families. Treat the source and the
-receipts below as a starting stack, not as a claim that every RDNA4 FlyDSL route is competitive.
+and performance maturity are separate facts. Upstream has native wave32/WMMA dense-GEMM and FP8
+preshuffle paths, and commit `3c03e97919bedbeb95ea803baed089c3725eabb6` merged the gfx120x FP8/BF8
+WMMA atom. GEAK's raw-weight block-scaled FP8 prototype is a different operator contract and remains
+an uncommitted R9700 campaign snapshot. Treat the sources and receipts below as a starting stack, not
+as a claim that every RDNA4 FlyDSL route is competitive.
 
 ## Capability ledger
 
@@ -31,7 +33,8 @@ receipts below as a starting stack, not as a claim that every RDNA4 FlyDSL route
 |---|---|---|---|
 | Architecture selection | available | `get_rocm_arch()`, `is_rdna_arch()`, `get_warp_size()` and `FLYDSL_GPU_ARCH` | detect first; pin `gfx1201` only for a box-specific run |
 | FP16/BF16 dense GEMM | upstream reference | `kernels/gemm/rdna_f16_gemm.py` | use this as the broad-M LDS/WMMA seed |
-| FP8 E4M3FN WMMA atom | implemented in `big-yellow-duck/FlyDSL@eed78c6d` | `GFX120X/MmaAtom.cpp`, MLIR positive/negative tests, device atom test | require `v_wmma_f32_16x16x16_fp8_fp8` in ISA |
+| FP8/BF8 WMMA atom | merged upstream in `ROCm/FlyDSL@3c03e979` | `GFX120X/MmaAtom.cpp`, MLIR positive/negative tests, and `test_rdna4_wmma_atom.py` | pin a revision containing that commit and require the intended `v_wmma` in ISA |
+| Upstream FP8 preshuffle GEMM | upstream reference | `kernels/gemm/rdna_fp8_preshuffle_gemm.py` and `test_rdna_gemm.py` | reuse scheduling ideas only when per-token A scales, per-channel B scales, and preshuffled B match the contract |
 | Raw-weight FP8 block scale, M1--M64 | parity-tested prototype | on-box source/benchmark snapshot listed below | usable evidence for decode/small-M authoring; not a broad-prefill template |
 | Raw-weight FP8 block scale, broad M | correctness route exists, performance open | GEAK broad-prefill campaign finished at 0.9895x weighted vs Triton and promoted no patch | fund LDS reuse/pipeline work before micro-tuning |
 | AITER integration | unsupported in GEAK RDNA4 policy | architecture gate and crash history | import standalone `flydsl`; never use `aiter.ops.flydsl` |
@@ -109,6 +112,10 @@ but that is not a universal setting.
 
 ## FP8 block-scale numerical contract
 
+This GEAK target is not upstream's `rdna_fp8_preshuffle_gemm.py`. That upstream kernel uses a raw A,
+preshuffled B, per-token A scale, and per-channel B scale. The target here owns raw B and arbitrary
+FP32 A/B scales at K128 boundaries; silently substituting the upstream layout changes the operator.
+
 For A `[M,K]`, raw B `[N,K]`, A scale `[M,K/128]`, and B scale `[N/128,K/128]`:
 
 ```text
@@ -151,6 +158,11 @@ pytest -q tests/kernels/test_rdna4_wmma_atom.py
 pytest -q tests/kernels/test_rdna_gemm.py
 ```
 
+On the local R9700/gfx1201 checkout containing upstream commit `3c03e979`, the atom suite passed 6/6.
+The applicable RDNA GEMM cases passed 26/26; 71 cases were skipped because they are gfx11-only. This
+is physical gfx1201 validation. gfx1200 shares the gfx120x lowering but remains compile-supported,
+not hardware-validated by this receipt.
+
 For FP8 block scale, additionally require:
 
 - reference parity over multiple random draws;
@@ -166,9 +178,10 @@ proves the instruction. Only the full ladder proves an operator route.
 
 ## On-box evidence snapshot
 
-Hardware: Radeon AI PRO R9700, `gfx1201`, 64 physical CUs / 32 WGPs. FlyDSL base commit:
-`eed78c6dd93fd297765632861587d9c3be82e0fc` (`codex/gfx120x-fp8-wmma-atom`). The small-M operator
-prototype was an uncommitted campaign snapshot, so its hashes are recorded explicitly:
+Hardware: Radeon AI PRO R9700, `gfx1201`, 64 physical CUs / 32 WGPs. The atom is now upstream at
+`3c03e97919bedbeb95ea803baed089c3725eabb6`. The custom small-M operator prototype was originally
+exercised on `eed78c6dd93fd297765632861587d9c3be82e0fc` and remains an uncommitted campaign snapshot,
+so its hashes are recorded explicitly:
 
 - `kernels/gemm/rdna4_fp8_blockscale.py` —
   `ea5eec5ee3a7d7d5b1bfa1081ef2fa82d25b4f25e139d709942ebfd209bcabd1`

@@ -4,7 +4,7 @@ kind: reference
 updated: 2026-06-09
 ---
 
-# Sources index — 511 unique URLs across 659 docs
+# Sources index — 515 unique URLs across 689 docs
 
 Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources.py`). Each doc keeps its own inline `## Sources`.
 
@@ -205,7 +205,10 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 - https://github.com/ROCm/FlyDSL
 - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
 - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
+- https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_tuning_guide.md
 - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
+- https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_fp8_preshuffle_gemm.py
+- https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
 - https://github.com/ROCm/HIP/issues/3333
 - https://github.com/ROCm/HIP/issues/3667
 - https://github.com/ROCm/MIOpen/blob/develop/CHANGELOG.md
@@ -214,6 +217,7 @@ Auto-generated union of every `## Sources` / inline URL (run `index/_gen_sources
 - https://github.com/ROCm/ROCm/issues/341
 - https://github.com/ROCm/TheRock/issues/2591
 - https://github.com/ROCm/aiter
+- https://github.com/ROCm/aiter.git
 - https://github.com/ROCm/aiter/blob/main/LICENSE
 - https://github.com/ROCm/aiter/issues/1455
 - https://github.com/ROCm/aiter/issues/1542
