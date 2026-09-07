@@ -1,0 +1,26 @@
+{
+  "schema": "workload-v1",
+  "target": "Qwen3.8-27B-FP8 TP2 paged-decode SplitKV on gfx1201 with BF16 portability",
+  "model": "Qwen/Qwen3.8-27B-FP8",
+  "revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+  "metric": "equal_weight_long_context_ratio_of_sums",
+  "notes": "FP8 long-context cases are the scored production prior. Captured short/large-batch FP8 shapes and BF16 cache cases are zero-weight correctness/performance guards.",
+  "cases_path": "/app/GEAK/targets/qwen3_8_27b_fp8_kv_splitkv_rdna4/baseline/cases.json",
+  "hardware": {
+    "gfx": "gfx1201",
+    "arch_class": "rdna4",
+    "wave_size": 32,
+    "physical_cu_count": 64,
+    "wgp_count": 32,
+    "geak_gpu_id": 1,
+    "logical_gpu_inside_pinned_process": 0
+  },
+  "quantization": {
+    "kv_cache_dtype": "fp8_e4m3fn",
+    "k_scale_dtype": "float32",
+    "v_scale_dtype": "float32",
+    "activation_dtype": "bfloat16",
+    "output_dtype": "bfloat16",
+    "portability_kv_cache_dtype": "bfloat16"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "kernel_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_m256_hip_rdna4/baseline",
+  "workflow_dir": "/app/GEAK/kernel_workflow",
+  "mode": "optimize",
+  "target_language": "hip",
+  "gpu_ids": "0",
+  "gpu_mode": "pin",
+  "budget": 16,
+  "min_improve": 0.005,
+  "candidate_floor": 1.0,
+  "progress_delta": 0.001,
+  "max_no_improve": 16,
+  "deep_cost": 4,
+  "dra_enabled": "false",
+  "use_expert_skills": "false",
+  "apply_to_original": "false",
+  "update_experience": "on",
+  "enable_fp8": "true",
+  "agent_timeout_ms": 3600000,
+  "workload_spec_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_m256_hip_rdna4/baseline/workload.json",
+  "task": "Before planning, read EXPERIMENT_CONTEXT.md completely and treat it as mandatory campaign memory. Use the full 16-direction budget unless correctness or infrastructure truly blocks progress; a failed correctness gate closes only that candidate family, not the campaign. This is a focused native-HIP gfx1201 campaign whose immutable denominator is the live vLLM Triton block-scaled FP8 GEMM. Replace the candidate route with one native HIP device kernel covering every manifest case. Do not optimize or ship Triton, import FlyDSL, use AITER/CK/rocBLAS/hipBLASLt, call another library GEMM, or dispatch auxiliary kernels. Preserve exact FP32-per-K128 scaled-partial accumulation, BF16 output, arbitrary padded B row stride, fresh outputs, current-input behavior, graph safety, and one device dispatch per run. Do not use exact M/signature/model routing, weight preshuffle, persistent weight copies, activation/output memoization, or changes outside kernel_src. The only scored case is M=256,N=8192,K=5120 with B stride 5376; six zero-weight hard gates cover M240--272, M tails, contiguous/padded B, and another N/K family. Require five-draw live parity at rtol=0.02 and atol=0.0625 plus output independence. Start from a correct 128-thread BM64xBN128xBK128 wave32 WMMA design with cooperative wide global-to-LDS loads and operand reuse, then compare single/two-stage pipelines, geometry, LDS padding, load mapping, prefetch, accumulator/store layout, scale overlap, and WGP fill. Bank only reproducible gains of at least 0.5%, keep every gate at least 0.98x, and target greater than 1.01x primary speedup. For each serious candidate prove HIP source rebuild and HIP dispatch engagement, inspect ISA for v_wmma rather than emulated FP8 math, and record VGPR/SGPR/LDS/scratch. Before final promotion run paired order-reversed timing, a cache-flushed control, graph replay, and trace/ISA/resource checks.",
+  "op_spec": {
+    "op_kind": "scaled_quant_gemm",
+    "language": "hip",
+    "implementation": "single-dispatch native HIP gfx1201 WMMA raw-weight block-scaled FP8 GEMM",
+    "dtype": "fp8_e4m3",
+    "output_dtype": "bfloat16",
+    "block_size": [128, 128],
+    "bias": false,
+    "transpose_b": true,
+    "regime": "prefill",
+    "input_dtypes": [
+      "float8_e4m3fn",
+      "float8_e4m3fn",
+      "float32",
+      "float32"
+    ],
+    "scale_dtype": "float32",
+    "accumulation_dtype": "float32",
+    "m_range": [240, 272],
+    "n_multiple": 128,
+    "k_multiple": 128,
+    "correctness": {
+      "rtol": 0.02,
+      "atol": 0.0625,
+      "random_draws": 5,
+      "fresh_output_required": true,
+      "native_hip_engagement_required_for_all_cases": true
+    },
+    "hardware": {
+      "gfx": "gfx1201",
+      "arch_class": "rdna4",
+      "wave_size": 32,
+      "physical_cu_count": 64,
+      "wgp_count": 32
+    },
+    "layout_contract": "A[M,K] and A_scale[M,K/128] are contiguous. B is logical [N,K] with stride(1)=1 and either arbitrary padded or contiguous stride(0). B_scale[N/128,K/128] is contiguous.",
+    "math_contract": "For each K128 block, complete the FP8 dot in FP32, multiply its independent FP32 A/B scales, accumulate scaled blocks in FP32, and cast once to BF16.",
+    "routing_contract": "One explainable native-HIP family must cover M240--272 and both manifest N/K families. Never route by an exact M, captured signature, or model identity."
+  }
+}

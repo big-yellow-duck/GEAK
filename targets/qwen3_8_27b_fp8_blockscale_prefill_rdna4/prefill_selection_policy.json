@@ -1,0 +1,39 @@
+{
+  "schema": "geak.prefill_selection_policy.v1",
+  "objective": "equal_weight_generalization",
+  "m_bucket_upper_bounds": [
+    128,
+    256,
+    512,
+    640,
+    800,
+    null
+  ],
+  "n_bucket_upper_bounds": [
+    6144,
+    12288,
+    null
+  ],
+  "k_bucket_upper_bounds": [
+    4096,
+    null
+  ],
+  "candidate_variants": [
+    "bm32",
+    "bm64",
+    "bm80"
+  ],
+  "variant_preference": [
+    "bm64",
+    "bm32",
+    "bm80"
+  ],
+  "max_custom_variants": 2,
+  "min_samples_per_bucket": 2,
+  "min_bucket_speedup": 1.01,
+  "per_case_regression_floor": 0.98,
+  "max_pass_spread": 0.08,
+  "variant_tie_margin": 0.01,
+  "policy_tie_margin": 0.005,
+  "fallback": "baseline"
+}

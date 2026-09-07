@@ -5,7 +5,8 @@
   "backends": [
     "triton"
   ],
-  "gpu_ids": "0,1",
+  "gpu_ids": "0",
+  "gpu_mode": "pin",
   "budget": 12,
   "min_improve": 0.005,
   "candidate_floor": 1.0,

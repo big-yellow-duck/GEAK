@@ -1,0 +1,126 @@
+{
+  "schema": "geak.qwen3_8_fp8_bf16_splitkv_cases.v2",
+  "geometry": {
+    "query": ["batch", 12, 256],
+    "kv_heads": 2,
+    "gqa_ratio": 6,
+    "physical_block_size": 1568,
+    "key_stride": [1605632, 401408, 25088, 16, 1],
+    "value_stride": [1605632, 401408, 1568, 1],
+    "kv_dtypes": ["float8_e4m3fn", "bfloat16"],
+    "activation_dtype": "bfloat16"
+  },
+  "cases": [
+    {
+      "name": "guard_b1_s180",
+      "seq_lens": [180],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "captured_short_context_regression"
+    },
+    {
+      "name": "guard_b1_s1374",
+      "seq_lens": [1374],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "captured_mid_context_regression"
+    },
+    {
+      "name": "guard_b1_s4014",
+      "seq_lens": [4014],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "captured_longest_context_regression"
+    },
+    {
+      "name": "split_b1_s8192",
+      "seq_lens": [8192],
+      "count": 1,
+      "weight": 1.0,
+      "coverage_role": "long_context_optimization"
+    },
+    {
+      "name": "split_b1_s32768",
+      "seq_lens": [32768],
+      "count": 1,
+      "weight": 1.0,
+      "coverage_role": "long_context_optimization"
+    },
+    {
+      "name": "split_b1_s131072",
+      "seq_lens": [131072],
+      "count": 1,
+      "weight": 1.0,
+      "coverage_role": "long_context_optimization"
+    },
+    {
+      "name": "split_ragged_b3_s32768",
+      "seq_lens": [32768, 16384, 8192],
+      "count": 1,
+      "weight": 1.0,
+      "coverage_role": "ragged_scheduler_optimization"
+    },
+    {
+      "name": "split_ragged_b13_s16384",
+      "seq_lens": [16384, 15360, 14336, 13312, 12288, 11264, 10240, 9216, 8192, 7168, 6144, 5120, 4096],
+      "count": 1,
+      "weight": 1.0,
+      "coverage_role": "ragged_scheduler_optimization"
+    },
+    {
+      "name": "guard_ragged_b30_s8192",
+      "seq_lens": [8192, 7936, 7680, 7424, 7168, 6912, 6656, 6400, 6144, 5888, 5632, 5376, 5120, 4864, 4608, 4352, 4096, 3840, 3584, 3328, 3072, 2816, 2560, 2304, 2048, 1792, 1536, 1280, 1024, 768],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "captured_large_batch_regression"
+    },
+    {
+      "name": "guard_bf16_b1_s257",
+      "kv_dtype": "bf16",
+      "seq_lens": [257],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "bf16_short_context_regression"
+    },
+    {
+      "name": "guard_bf16_b1_s1567",
+      "kv_dtype": "bf16",
+      "seq_lens": [1567],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "bf16_page_boundary_regression"
+    },
+    {
+      "name": "guard_bf16_b1_s1568",
+      "kv_dtype": "bf16",
+      "seq_lens": [1568],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "bf16_page_boundary_regression"
+    },
+    {
+      "name": "guard_bf16_b1_s1569",
+      "kv_dtype": "bf16",
+      "seq_lens": [1569],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "bf16_page_boundary_regression"
+    },
+    {
+      "name": "guard_bf16_b1_s8192",
+      "kv_dtype": "bf16",
+      "seq_lens": [8192],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "bf16_long_context_regression"
+    },
+    {
+      "name": "guard_bf16_ragged_b3_s8192",
+      "kv_dtype": "bf16",
+      "seq_lens": [8192, 4097, 1569],
+      "count": 0,
+      "weight": 0.0,
+      "coverage_role": "bf16_ragged_regression"
+    }
+  ]
+}

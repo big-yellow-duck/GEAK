@@ -1,0 +1,590 @@
+{
+  "kernel_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale/baseline",
+  "workflow_dir": "/app/GEAK/kernel_workflow",
+  "mode": "bakeoff",
+  "backends": [
+    "flydsl"
+  ],
+  "gpu_ids": "0,1",
+  "budget": 8,
+  "apply_to_original": "false",
+  "workload_spec_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale/baseline/workload.json",
+  "op_spec": {
+    "op_kind": "gemm",
+    "dtype": "fp8_e4m3fn",
+    "output_dtype": "bfloat16",
+    "block_size": [
+      128,
+      128
+    ],
+    "bias": false,
+    "transpose_b": true,
+    "regime": "both",
+    "input_dtypes": [
+      "float8_e4m3fn",
+      "float8_e4m3fn",
+      "float32",
+      "float32"
+    ],
+    "scale_dtype": "float32",
+    "accumulation_dtype": "float32",
+    "correctness": {
+      "rtol": 0.01,
+      "atol": 0.01,
+      "random_draws": 5
+    },
+    "hardware": {
+      "gfx": "gfx1201",
+      "arch_class": "rdna4",
+      "wave_size": 32,
+      "physical_cu_count": 64,
+      "wgp_count": 32
+    },
+    "shapes": [
+      {
+        "sig": "decode_m1_n5120_k3072_bn128_bk128",
+        "M": 1,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1707
+      },
+      {
+        "sig": "decode_m1_n5120_k8704_bn128_bk128",
+        "M": 1,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1709
+      },
+      {
+        "sig": "decode_m1_n7168_k5120_bn128_bk128",
+        "M": 1,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1710
+      },
+      {
+        "sig": "decode_m1_n8192_k5120_bn128_bk128",
+        "M": 1,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1706
+      },
+      {
+        "sig": "decode_m1_n17408_k5120_bn128_bk128",
+        "M": 1,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1708
+      },
+      {
+        "sig": "decode_m2_n5120_k3072_bn128_bk128",
+        "M": 2,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1727
+      },
+      {
+        "sig": "decode_m2_n5120_k8704_bn128_bk128",
+        "M": 2,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1729
+      },
+      {
+        "sig": "decode_m2_n7168_k5120_bn128_bk128",
+        "M": 2,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1730
+      },
+      {
+        "sig": "decode_m2_n8192_k5120_bn128_bk128",
+        "M": 2,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1726
+      },
+      {
+        "sig": "decode_m2_n17408_k5120_bn128_bk128",
+        "M": 2,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "decode",
+        "seed": 1728
+      },
+      {
+        "sig": "prefill_m72_n5120_k3072_bn128_bk128",
+        "M": 72,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1702
+      },
+      {
+        "sig": "prefill_m72_n5120_k8704_bn128_bk128",
+        "M": 72,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1704
+      },
+      {
+        "sig": "prefill_m72_n7168_k5120_bn128_bk128",
+        "M": 72,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1705
+      },
+      {
+        "sig": "prefill_m72_n8192_k5120_bn128_bk128",
+        "M": 72,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1701
+      },
+      {
+        "sig": "prefill_m72_n17408_k5120_bn128_bk128",
+        "M": 72,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1703
+      },
+      {
+        "sig": "prefill_m138_n5120_k3072_bn128_bk128",
+        "M": 138,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1712
+      },
+      {
+        "sig": "prefill_m138_n5120_k8704_bn128_bk128",
+        "M": 138,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1714
+      },
+      {
+        "sig": "prefill_m138_n7168_k5120_bn128_bk128",
+        "M": 138,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1715
+      },
+      {
+        "sig": "prefill_m138_n8192_k5120_bn128_bk128",
+        "M": 138,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1711
+      },
+      {
+        "sig": "prefill_m138_n17408_k5120_bn128_bk128",
+        "M": 138,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1713
+      },
+      {
+        "sig": "prefill_m139_n5120_k3072_bn128_bk128",
+        "M": 139,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1717
+      },
+      {
+        "sig": "prefill_m139_n5120_k8704_bn128_bk128",
+        "M": 139,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1719
+      },
+      {
+        "sig": "prefill_m139_n7168_k5120_bn128_bk128",
+        "M": 139,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1720
+      },
+      {
+        "sig": "prefill_m139_n8192_k5120_bn128_bk128",
+        "M": 139,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1716
+      },
+      {
+        "sig": "prefill_m139_n17408_k5120_bn128_bk128",
+        "M": 139,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1718
+      },
+      {
+        "sig": "prefill_m249_n5120_k3072_bn128_bk128",
+        "M": 249,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1742
+      },
+      {
+        "sig": "prefill_m249_n5120_k8704_bn128_bk128",
+        "M": 249,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1744
+      },
+      {
+        "sig": "prefill_m249_n7168_k5120_bn128_bk128",
+        "M": 249,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1745
+      },
+      {
+        "sig": "prefill_m249_n8192_k5120_bn128_bk128",
+        "M": 249,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1741
+      },
+      {
+        "sig": "prefill_m249_n17408_k5120_bn128_bk128",
+        "M": 249,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1743
+      },
+      {
+        "sig": "prefill_m277_n5120_k3072_bn128_bk128",
+        "M": 277,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1722
+      },
+      {
+        "sig": "prefill_m277_n5120_k8704_bn128_bk128",
+        "M": 277,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1724
+      },
+      {
+        "sig": "prefill_m277_n7168_k5120_bn128_bk128",
+        "M": 277,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1725
+      },
+      {
+        "sig": "prefill_m277_n8192_k5120_bn128_bk128",
+        "M": 277,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1721
+      },
+      {
+        "sig": "prefill_m277_n17408_k5120_bn128_bk128",
+        "M": 277,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1723
+      },
+      {
+        "sig": "prefill_m523_n5120_k3072_bn128_bk128",
+        "M": 523,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1732
+      },
+      {
+        "sig": "prefill_m523_n5120_k8704_bn128_bk128",
+        "M": 523,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1734
+      },
+      {
+        "sig": "prefill_m523_n7168_k5120_bn128_bk128",
+        "M": 523,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1735
+      },
+      {
+        "sig": "prefill_m523_n8192_k5120_bn128_bk128",
+        "M": 523,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1731
+      },
+      {
+        "sig": "prefill_m523_n17408_k5120_bn128_bk128",
+        "M": 523,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1733
+      },
+      {
+        "sig": "prefill_m784_n5120_k3072_bn128_bk128",
+        "M": 784,
+        "N": 5120,
+        "K": 3072,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1737
+      },
+      {
+        "sig": "prefill_m784_n5120_k8704_bn128_bk128",
+        "M": 784,
+        "N": 5120,
+        "K": 8704,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1739
+      },
+      {
+        "sig": "prefill_m784_n7168_k5120_bn128_bk128",
+        "M": 784,
+        "N": 7168,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1740
+      },
+      {
+        "sig": "prefill_m784_n8192_k5120_bn128_bk128",
+        "M": 784,
+        "N": 8192,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1736
+      },
+      {
+        "sig": "prefill_m784_n17408_k5120_bn128_bk128",
+        "M": 784,
+        "N": 17408,
+        "K": 5120,
+        "block_size": [
+          128,
+          128
+        ],
+        "regime": "prefill",
+        "seed": 1738
+      }
+    ],
+    "layout_contract": "A and activation scales are row-major. B is logical [N,K] but its row stride is captured independently and is padded to the checkpoint's physical K; the candidate must honor all workload case strides. B scales are row-major [ceil(N/128),ceil(K/128)].",
+    "hardware_contract": "Target gfx1201 RDNA4 wave32. The Radeon AI PRO R9700 has 64 physical CUs paired as 32 WGP scheduling/resource units; PyTorch multi_processor_count reports the 32 WGP-like units, not physical CUs. Size persistent/fill grids from WGP count and use WMMA, never CDNA MFMA.",
+    "math_contract": "For each K block, accumulate FP32 dot(A_fp8, B_fp8) multiplied by the per-token-block A scale and per-[128,128] weight-block B scale; cast once to the captured output dtype. gfx1201 must use wave32 WMMA plus software FP32 block scaling; no CDNA MFMA, gfx1250 WMMA_SCALE, or AITER."
+  },
+  "task": "Port the frozen vLLM Triton W8A8 FP8 block-scale GEMM to standalone FlyDSL main for gfx1201. Preserve exact captured layouts/dtypes and optimize the weighted Qwen3.8-27B-FP8 decode+prefill shape set."
+}

@@ -1,0 +1,54 @@
+{
+  "kernel_path": "/app/GEAK/targets/qwen3_8_27b_fp8_kv_splitkv_rdna4/baseline",
+  "workflow_dir": "/app/GEAK/kernel_workflow",
+  "mode": "bakeoff",
+  "backends": [
+    "hip"
+  ],
+  "gpu_ids": "1",
+  "gpu_mode": "pin",
+  "budget": 16,
+  "min_improve": 0.005,
+  "candidate_floor": 1.0,
+  "progress_delta": 0.001,
+  "max_no_improve": 16,
+  "deep_cost": 1,
+  "dra_enabled": "false",
+  "apply_to_original": "false",
+  "update_experience": "on",
+  "enable_fp8": "true",
+  "workload_spec_path": "/app/GEAK/targets/qwen3_8_27b_fp8_kv_splitkv_rdna4/baseline/workload.json",
+  "task": "Before planning, read kernel_src/EXPERIMENT_CONTEXT.md completely and treat it as mandatory campaign memory. Author a fresh native-HIP gfx1201 SplitKV paged-decode implementation, then use the full 16-direction optimization budget to beat the immutable live Triton SplitKV denominator. The HIP implementation must support both OCP FP8 E4M3FN and BF16 KV caches with BF16 query/output, head size 256, Hq=12, Hkv=2, GQA=6, physical page size 1568, arbitrary ragged sequence lengths, and the exact stride-padded K/V cache contract. For FP8, apply independent scalar FP32 k_scale/v_scale before BF16 dot products; BF16 caches are unscaled. The five weighted FP8 long-context/ragged cases are the primary ratio-of-sums; all captured FP8 guards plus BF16 short, page-boundary, long, and ragged cases are mandatory zero-weight gates. Time the complete attention operation with caller-owned output and scratch: allocation and JIT compilation stay outside timing. A two-dispatch stage-1 plus reduction design is acceptable; a correct fused or persistent single-dispatch design is preferred when faster. Never optimize or ship Triton as the HIP candidate, import FlyDSL/AITER/CK, call a library attention implementation, memoize outputs or operands, use persistent result reuse, exact-shape lookup tables, hidden precomputation, relaxed accuracy, or reduce case coverage. Start correctness-first with wave32 reductions and stride-based scalar/vector loads, then explore split scheduling, token tiles, GQA6 row utilization, OCP FP8 conversion/WMMA or dot strategy, LDS layouts, online softmax, producer/reducer fusion, scratch traffic, and launch overhead. Bank only reproducible gains of at least 0.5%; require rtol=atol=0.01 live parity on five fresh draws, output independence, native HIP source rebuild and dispatch engagement on every dtype/case, every zero-weight guard at least 0.98x, and a final scored FP8 speedup greater than 1.0x over frozen Triton. Record VGPR/SGPR/LDS/scratch, inspect ISA for the intended gfx1201 instructions, and finish with paired order-reversed cache-controlled timings plus CUDA-graph replay.",
+  "op_spec": {
+    "op_kind": "paged_attention_decode",
+    "language": "hip",
+    "implementation": "native HIP SplitKV paged attention authored against frozen Triton",
+    "kv_cache_dtypes": ["float8_e4m3fn", "bfloat16"],
+    "query_dtype": "bfloat16",
+    "output_dtype": "bfloat16",
+    "scale_dtype": "float32",
+    "head_size": 256,
+    "num_query_heads": 12,
+    "num_kv_heads": 2,
+    "gqa_ratio": 6,
+    "physical_block_size": 1568,
+    "max_num_splits": 16,
+    "routing_contract": "One native HIP implementation family must cover every FP8 and BF16 manifest case without exact-shape/model routing.",
+    "math_contract": "Online softmax and cross-split merge use FP32 state. FP8 K/V are dequantized with independent scalar FP32 scales before BF16 dot products; BF16 K/V use unit scales. Output is cast once to BF16.",
+    "correctness": {
+      "rtol": 0.01,
+      "atol": 0.01,
+      "random_draws": 5,
+      "fresh_output_required": true
+    },
+    "hardware": {
+      "gfx": "gfx1201",
+      "arch_class": "rdna4",
+      "wave_size": 32,
+      "physical_cu_count": 64,
+      "wgp_count": 32,
+      "physical_gpu": 1,
+      "logical_gpu_inside_process": 0
+    }
+  }
+}

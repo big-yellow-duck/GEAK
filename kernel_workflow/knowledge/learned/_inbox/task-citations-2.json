@@ -1,0 +1,53 @@
+{
+  "run_id": "task-citations",
+  "date": "2026-08-24",
+  "kernel_names": [
+    "task"
+  ],
+  "validation_status": "accepted",
+  "box_quiet": true,
+  "held_out": false,
+  "cards": [],
+  "citations": [
+    {
+      "card": "derive-the-split-kv-decode-launch-shape-from-a-constant-byte-attention-decode-gfx950-decode.md",
+      "round": 1,
+      "direction": "r1_d1",
+      "specialty": "host_runtime",
+      "cited_then_verified": 0.9983424269506891,
+      "became_winner": false
+    },
+    {
+      "card": "one-dispatch-for-split-kv-decode-and-the-protocol-that-pays--attention-decode-gfx950-decode.md",
+      "round": 2,
+      "direction": "r2_d1",
+      "specialty": "host_runtime",
+      "cited_then_verified": null,
+      "became_winner": false
+    },
+    {
+      "card": "pack-heads-per-workgroup-then-strip-the-inner-loop-attention-gfx950-prefill.md",
+      "round": 3,
+      "direction": "r3_d0",
+      "specialty": "algorithm",
+      "cited_then_verified": 0,
+      "became_winner": false
+    },
+    {
+      "card": "measure-the-empty-graph-replay-floor-before-funding-a-captur-attention-decode-gfx950-decode.md",
+      "round": 4,
+      "direction": "r4_d2",
+      "specialty": "host_runtime",
+      "cited_then_verified": 4.335037278101758,
+      "became_winner": false
+    },
+    {
+      "card": "launch-meta-first-on-latency-floored-paged-decode-and-let-th-attention-decode-gfx950-decode.md",
+      "round": 6,
+      "direction": "r6_d2",
+      "specialty": "compute",
+      "cited_then_verified": 0,
+      "became_winner": false
+    }
+  ]
+}

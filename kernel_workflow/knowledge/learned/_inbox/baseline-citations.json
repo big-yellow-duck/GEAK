@@ -1,0 +1,29 @@
+{
+  "run_id": "baseline-citations",
+  "date": "2026-08-25",
+  "kernel_names": [
+    "baseline"
+  ],
+  "validation_status": "accepted",
+  "box_quiet": true,
+  "held_out": false,
+  "cards": [],
+  "citations": [
+    {
+      "card": "arg-plan-replay-beats-graph-replay-at-low-dispatch-counts-an-quantized-gemm-gfx950-mixed.md",
+      "round": 6,
+      "direction": "r6_d0",
+      "specialty": "host_runtime",
+      "cited_then_verified": 0,
+      "became_winner": false
+    },
+    {
+      "card": "force-the-rebuild-pair-the-blocks-dump-the-registers-before--method-gfx950-n-a.md",
+      "round": 6,
+      "direction": "r6_d0",
+      "specialty": "host_runtime",
+      "cited_then_verified": 0,
+      "became_winner": false
+    }
+  ]
+}

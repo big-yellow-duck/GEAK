@@ -1,0 +1,85 @@
+{
+  "run_id": "baseline-citations",
+  "date": "2026-09-04",
+  "kernel_names": [
+    "baseline"
+  ],
+  "validation_status": "accepted",
+  "box_quiet": true,
+  "held_out": false,
+  "cards": [],
+  "citations": [
+    {
+      "card": "collapse-the-partition-grid-instead-of-optimizing-the-round--attention-decode-gfx950-decode.md",
+      "round": 1,
+      "direction": "r1_d1",
+      "specialty": "algorithm",
+      "cited_then_verified": 1.0123365048343027,
+      "became_winner": false
+    },
+    {
+      "card": "split-kv-decode-the-two-dispatch-shape-is-welded-budget-the--attention-decode-gfx950-decode.md",
+      "round": 1,
+      "direction": "r1_d1",
+      "specialty": "algorithm",
+      "cited_then_verified": 1.0123365048343027,
+      "became_winner": false
+    },
+    {
+      "card": "collapse-the-partition-grid-instead-of-optimizing-the-round--attention-decode-gfx950-decode.md",
+      "round": 2,
+      "direction": "r2_d1",
+      "specialty": "algorithm",
+      "cited_then_verified": 1.362004826133542,
+      "became_winner": false
+    },
+    {
+      "card": "split-only-up-to-one-workgroup-per-cu-and-make-pipeline-dept-attention-decode-gfx950-decode.md",
+      "round": 3,
+      "direction": "r3_d2",
+      "specialty": "algorithm",
+      "cited_then_verified": 1.331240980877208,
+      "became_winner": false
+    },
+    {
+      "card": "scope-a-closure-a-gate-and-a-stack-by-case-regime-method-gfx950-n-a.md",
+      "round": 5,
+      "direction": "r5_d0",
+      "specialty": "host_runtime",
+      "cited_then_verified": 1.5540291948543457,
+      "became_winner": false
+    },
+    {
+      "card": "a-b-in-the-graded-case-mix-and-price-a-direction-against-the-method-gfx950-n-a.md",
+      "round": 5,
+      "direction": "r5_d0",
+      "specialty": "host_runtime",
+      "cited_then_verified": 1.5540291948543457,
+      "became_winner": false
+    },
+    {
+      "card": "re-measure-shelved-partials-after-the-bound-class-moves-method-gfx950-n-a.md",
+      "round": 6,
+      "direction": "r6_d2",
+      "specialty": "algorithm",
+      "cited_then_verified": 0,
+      "became_winner": false
+    },
+    {
+      "card": "launch-meta-first-on-latency-floored-paged-decode-and-let-th-attention-decode-gfx950-decode.md",
+      "round": 9,
+      "direction": "r9_d2",
+      "specialty": "compute",
+      "cited_then_verified": 1.5967172311778495,
+      "became_winner": false
+    },
+    {
+      "card": "scope-a-closure-a-gate-and-a-stack-by-case-regime-method-gfx950-n-a.md",
+      "round": 11,
+      "direction": "r11_d2",
+      "specialty": "host_runtime",
+      "cited_then_verified": 0,
+      "became_winner": false
+    }
+  ]
+}

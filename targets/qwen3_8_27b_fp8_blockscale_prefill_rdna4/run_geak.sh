@@ -24,6 +24,9 @@ export GEAK_GPU_GFX GEAK_GPU_ARCH_CLASS GEAK_GPU_WAVE_SIZE
 export GEAK_GPU_CU_COUNT GEAK_GPU_WGP_COUNT
 export PYTORCH_ROCM_ARCH="${PYTORCH_ROCM_ARCH:-$GEAK_GPU_GFX}"
 export GPU_ARCHS="${GPU_ARCHS:-$GEAK_GPU_GFX}"
+# This target owns GPU 0 only. The allocation fence makes any accidental GPU 1
+# request fail instead of consuming the card reserved for another bakeoff.
+export GEAK_GPU_ALLOWED="0"
 
 if [ "$GEAK_GPU_ARCH_CLASS" != "rdna4" ]; then
     echo "This target requires RDNA4; detected $GEAK_GPU_GFX ($GEAK_GPU_ARCH_CLASS)." >&2
@@ -43,7 +46,7 @@ required = vllm_src / "vllm/model_executor/layers/quantization/utils/fp8_utils.p
 assert required.is_file(), f"missing vLLM FP8 baseline: {required}"
 props = torch.cuda.get_device_properties(0)
 print(
-    f"RDNA4 prefill target: {props.name}, {props.gcnArchName}, "
+    f"RDNA4 prefill target (GPU 0 only): {props.name}, {props.gcnArchName}, "
     f"physical_cus={__import__('os').environ['GEAK_GPU_CU_COUNT']}, "
     f"wgps={__import__('os').environ['GEAK_GPU_WGP_COUNT']}"
 )

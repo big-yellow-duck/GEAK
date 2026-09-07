@@ -1,0 +1,45 @@
+{
+  "run_id": "task-citations",
+  "date": "2026-09-03",
+  "kernel_names": [
+    "task"
+  ],
+  "validation_status": "accepted",
+  "box_quiet": true,
+  "held_out": false,
+  "cards": [],
+  "citations": [
+    {
+      "card": "collapse-the-fp8-dequant-chain-into-one-scaled-convert-quantized-gemm-gfx950-compute-bound.md",
+      "round": 2,
+      "direction": "r2_d1",
+      "specialty": "compute",
+      "cited_then_verified": 3.348989282038006,
+      "became_winner": false
+    },
+    {
+      "card": "measure-the-empty-graph-replay-floor-before-funding-a-captur-attention-decode-gfx950-decode.md",
+      "round": 3,
+      "direction": "r3_d1",
+      "specialty": "host_runtime",
+      "cited_then_verified": 0,
+      "became_winner": false
+    },
+    {
+      "card": "decode-attention-the-python-ctypes-prologue-is-the-first-thr-attention-decode-gfx950-decode.md",
+      "round": 5,
+      "direction": "r5_d1",
+      "specialty": "host_runtime",
+      "cited_then_verified": null,
+      "became_winner": false
+    },
+    {
+      "card": "derive-the-split-kv-decode-launch-shape-from-a-constant-byte-attention-decode-gfx950-decode.md",
+      "round": 7,
+      "direction": "r7_d1",
+      "specialty": "algorithm",
+      "cited_then_verified": 8.117273926046185,
+      "became_winner": false
+    }
+  ]
+}

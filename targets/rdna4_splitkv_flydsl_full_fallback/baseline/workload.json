@@ -1,0 +1,15 @@
+{
+  "schema": "workload-v1",
+  "target": "RDNA4 FlyDSL replacement of vLLM Triton SplitKV fallback",
+  "metric": "broad_fallback_ratio_of_sums",
+  "cases_path": "/app/GEAK/targets/rdna4_splitkv_flydsl_full_fallback/baseline/cases.json",
+  "notes": "Equal per-case weights across GQA, dtype/head, and ragged fallback surfaces; zero-weight seed and boundary guards.",
+  "hardware": {
+    "gfx": "gfx1201",
+    "arch_class": "rdna4",
+    "wave_size": 32,
+    "physical_cu_count": 64,
+    "wgp_count": 32,
+    "geak_gpu_id": 1
+  }
+}

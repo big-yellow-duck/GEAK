@@ -1,0 +1,54 @@
+{
+  "kernel_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_skinny_rdna4/baseline",
+  "workflow_dir": "/app/GEAK/kernel_workflow",
+  "mode": "optimize",
+  "target_language": "hip",
+  "gpu_ids": "0",
+  "gpu_mode": "pin",
+  "budget": 12,
+  "min_improve": 0.01,
+  "candidate_floor": 1.0,
+  "progress_delta": 0.002,
+  "max_no_improve": 3,
+  "deep_cost": 3,
+  "dra_enabled": "false",
+  "apply_to_original": "false",
+  "update_experience": "on",
+  "enable_fp8": "true",
+  "workload_spec_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_skinny_rdna4/baseline/workload.json",
+  "task": "Read kernel_src/EXPERIMENT_CONTEXT.md before planning. Expand the existing gfx12x HIP/rocWMMA FP8 block-scaled GEMM from native M=1,2 to a comprehensive native M=1..16 implementation. M=4 is the production-weighted performance target, but a candidate is invalid unless every integer M from 1 through 16 uses one native HIP device dispatch for all supported N,K multiples of 128; do not win by exact M=4 or exact Qwen N/K routing, and do not silently fall back to Triton. Preserve the exact FP32-per-128-K scaled-partial accumulation contract, BF16 output, captured padded B strides, fresh output storage, and current inputs on every call. No weight preshuffle, persistent weight/output buffers, memoization, extra device dispatch, AITER, CK, or FlyDSL. Protect current M=1,2 performance at 0.98x per Qwen case; require every expansion and portability case to stay at least 0.98x versus the live hybrid baseline; require at least 1.01x on the production-weighted M=4 ratio-of-sums. Test all 112 manifest cases with five random draws and row-distinct/rank-pattern inputs. Prefer a compact M<=16 HIP kernel family based on wave packing, N-tile width, K split, and occupancy rather than an exact-shape table. Before promotion, prove HIP engagement, run three cache-flushed reversed-order paired passes, CUDA-graph replay, and a full Qwen TP A/B with NCCL_PROTO=Simple fixed in both legs.",
+  "op_spec": {
+    "op_kind": "gemm",
+    "language": "hip",
+    "implementation": "native HIP/rocWMMA skinny FP8 block-scaled GEMM",
+    "dtype": "fp8_e4m3fn",
+    "output_dtype": "bfloat16",
+    "block_size": [128, 128],
+    "bias": false,
+    "transpose_b": true,
+    "regime": "decode",
+    "input_dtypes": [
+      "float8_e4m3fn",
+      "float8_e4m3fn",
+      "float32",
+      "float32"
+    ],
+    "scale_dtype": "float32",
+    "accumulation_dtype": "float32",
+    "correctness": {
+      "rtol": 0.01,
+      "atol": 0.01,
+      "random_draws": 5,
+      "fresh_output_required": true,
+      "native_engagement_required": true
+    },
+    "hardware": {
+      "gfx": "gfx1201",
+      "arch_class": "rdna4",
+      "wave_size": 32,
+      "physical_cu_count": 64,
+      "wgp_count": 32
+    },
+    "m_range": [1, 16]
+  }
+}

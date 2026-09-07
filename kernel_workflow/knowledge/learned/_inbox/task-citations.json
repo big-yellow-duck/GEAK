@@ -1,0 +1,29 @@
+{
+  "run_id": "task-citations",
+  "date": "2026-08-22",
+  "kernel_names": [
+    "task"
+  ],
+  "validation_status": "accepted",
+  "box_quiet": true,
+  "held_out": false,
+  "cards": [],
+  "citations": [
+    {
+      "card": "split-k-by-2-to-fill-the-grid-on-the-tiny-m-case-quantized-gemm-gfx950-small-batch.md",
+      "round": 2,
+      "direction": "r2_d1",
+      "specialty": "algorithm",
+      "cited_then_verified": 1.0047693162009808,
+      "became_winner": false
+    },
+    {
+      "card": "re-price-the-dead-list-when-the-operating-point-moves-method-gfx950-compute-bound.md",
+      "round": 3,
+      "direction": "r3_d0",
+      "specialty": "memory",
+      "cited_then_verified": 1.1013210112101488,
+      "became_winner": false
+    }
+  ]
+}

@@ -1,0 +1,405 @@
+{
+  "schema": "geak.w8a8_blockscale_cases.v1",
+  "source": "focused M256 HIP-vs-Triton RDNA4 campaign",
+  "cases": [
+    {
+      "sig": "m256_hip_primary_m256_n8192_k5120_bn128_bk128",
+      "M": 256,
+      "N": 8192,
+      "K": 5120,
+      "a_shape": [
+        256,
+        5120
+      ],
+      "b_shape": [
+        8192,
+        5120
+      ],
+      "as_shape": [
+        256,
+        40
+      ],
+      "bs_shape": [
+        64,
+        40
+      ],
+      "a_stride": [
+        5120,
+        1
+      ],
+      "b_stride": [
+        5376,
+        1
+      ],
+      "as_stride": [
+        40,
+        1
+      ],
+      "bs_stride": [
+        40,
+        1
+      ],
+      "a_dtype": "float8_e4m3fn",
+      "b_dtype": "float8_e4m3fn",
+      "as_dtype": "float32",
+      "bs_dtype": "float32",
+      "output_dtype": "bfloat16",
+      "block_size": [
+        128,
+        128
+      ],
+      "regime": "prefill",
+      "seed": 1200035,
+      "call_count": 1,
+      "baseline_latency_ms": 0.160477,
+      "weight": 0.160477,
+      "weight_source": "archived_geak_primary_latency",
+      "count": 1,
+      "coverage_role": "scored_m256_primary",
+      "route_expectation": "native_hip_general_route",
+      "synthetic": false
+    },
+    {
+      "sig": "m256_hip_m240_padded_m240_n8192_k5120_bn128_bk128",
+      "M": 240,
+      "N": 8192,
+      "K": 5120,
+      "a_shape": [
+        240,
+        5120
+      ],
+      "b_shape": [
+        8192,
+        5120
+      ],
+      "as_shape": [
+        240,
+        40
+      ],
+      "bs_shape": [
+        64,
+        40
+      ],
+      "a_stride": [
+        5120,
+        1
+      ],
+      "b_stride": [
+        5376,
+        1
+      ],
+      "as_stride": [
+        40,
+        1
+      ],
+      "bs_stride": [
+        40,
+        1
+      ],
+      "a_dtype": "float8_e4m3fn",
+      "b_dtype": "float8_e4m3fn",
+      "as_dtype": "float32",
+      "bs_dtype": "float32",
+      "output_dtype": "bfloat16",
+      "block_size": [
+        128,
+        128
+      ],
+      "regime": "prefill",
+      "seed": 2200001,
+      "call_count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_source": "zero_weight_hard_gate",
+      "count": 0,
+      "coverage_role": "zero_weight_generality_gate",
+      "route_expectation": "native_hip_general_route",
+      "synthetic": true
+    },
+    {
+      "sig": "m256_hip_m255_tail_padded_m255_n8192_k5120_bn128_bk128",
+      "M": 255,
+      "N": 8192,
+      "K": 5120,
+      "a_shape": [
+        255,
+        5120
+      ],
+      "b_shape": [
+        8192,
+        5120
+      ],
+      "as_shape": [
+        255,
+        40
+      ],
+      "bs_shape": [
+        64,
+        40
+      ],
+      "a_stride": [
+        5120,
+        1
+      ],
+      "b_stride": [
+        5376,
+        1
+      ],
+      "as_stride": [
+        40,
+        1
+      ],
+      "bs_stride": [
+        40,
+        1
+      ],
+      "a_dtype": "float8_e4m3fn",
+      "b_dtype": "float8_e4m3fn",
+      "as_dtype": "float32",
+      "bs_dtype": "float32",
+      "output_dtype": "bfloat16",
+      "block_size": [
+        128,
+        128
+      ],
+      "regime": "prefill",
+      "seed": 2200002,
+      "call_count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_source": "zero_weight_hard_gate",
+      "count": 0,
+      "coverage_role": "zero_weight_generality_gate",
+      "route_expectation": "native_hip_general_route",
+      "synthetic": true
+    },
+    {
+      "sig": "m256_hip_m257_tail_padded_m257_n8192_k5120_bn128_bk128",
+      "M": 257,
+      "N": 8192,
+      "K": 5120,
+      "a_shape": [
+        257,
+        5120
+      ],
+      "b_shape": [
+        8192,
+        5120
+      ],
+      "as_shape": [
+        257,
+        40
+      ],
+      "bs_shape": [
+        64,
+        40
+      ],
+      "a_stride": [
+        5120,
+        1
+      ],
+      "b_stride": [
+        5376,
+        1
+      ],
+      "as_stride": [
+        40,
+        1
+      ],
+      "bs_stride": [
+        40,
+        1
+      ],
+      "a_dtype": "float8_e4m3fn",
+      "b_dtype": "float8_e4m3fn",
+      "as_dtype": "float32",
+      "bs_dtype": "float32",
+      "output_dtype": "bfloat16",
+      "block_size": [
+        128,
+        128
+      ],
+      "regime": "prefill",
+      "seed": 2200003,
+      "call_count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_source": "zero_weight_hard_gate",
+      "count": 0,
+      "coverage_role": "zero_weight_generality_gate",
+      "route_expectation": "native_hip_general_route",
+      "synthetic": true
+    },
+    {
+      "sig": "m256_hip_m272_padded_m272_n8192_k5120_bn128_bk128",
+      "M": 272,
+      "N": 8192,
+      "K": 5120,
+      "a_shape": [
+        272,
+        5120
+      ],
+      "b_shape": [
+        8192,
+        5120
+      ],
+      "as_shape": [
+        272,
+        40
+      ],
+      "bs_shape": [
+        64,
+        40
+      ],
+      "a_stride": [
+        5120,
+        1
+      ],
+      "b_stride": [
+        5376,
+        1
+      ],
+      "as_stride": [
+        40,
+        1
+      ],
+      "bs_stride": [
+        40,
+        1
+      ],
+      "a_dtype": "float8_e4m3fn",
+      "b_dtype": "float8_e4m3fn",
+      "as_dtype": "float32",
+      "bs_dtype": "float32",
+      "output_dtype": "bfloat16",
+      "block_size": [
+        128,
+        128
+      ],
+      "regime": "prefill",
+      "seed": 2200004,
+      "call_count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_source": "zero_weight_hard_gate",
+      "count": 0,
+      "coverage_role": "zero_weight_generality_gate",
+      "route_expectation": "native_hip_general_route",
+      "synthetic": true
+    },
+    {
+      "sig": "m256_hip_m256_contiguous_b_m256_n8192_k5120_bn128_bk128",
+      "M": 256,
+      "N": 8192,
+      "K": 5120,
+      "a_shape": [
+        256,
+        5120
+      ],
+      "b_shape": [
+        8192,
+        5120
+      ],
+      "as_shape": [
+        256,
+        40
+      ],
+      "bs_shape": [
+        64,
+        40
+      ],
+      "a_stride": [
+        5120,
+        1
+      ],
+      "b_stride": [
+        5120,
+        1
+      ],
+      "as_stride": [
+        40,
+        1
+      ],
+      "bs_stride": [
+        40,
+        1
+      ],
+      "a_dtype": "float8_e4m3fn",
+      "b_dtype": "float8_e4m3fn",
+      "as_dtype": "float32",
+      "bs_dtype": "float32",
+      "output_dtype": "bfloat16",
+      "block_size": [
+        128,
+        128
+      ],
+      "regime": "prefill",
+      "seed": 2200005,
+      "call_count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_source": "zero_weight_hard_gate",
+      "count": 0,
+      "coverage_role": "zero_weight_generality_gate",
+      "route_expectation": "native_hip_general_route",
+      "synthetic": true
+    },
+    {
+      "sig": "m256_hip_m256_n5120_k8704_padded_m256_n5120_k8704_bn128_bk128",
+      "M": 256,
+      "N": 5120,
+      "K": 8704,
+      "a_shape": [
+        256,
+        8704
+      ],
+      "b_shape": [
+        5120,
+        8704
+      ],
+      "as_shape": [
+        256,
+        68
+      ],
+      "bs_shape": [
+        40,
+        68
+      ],
+      "a_stride": [
+        8704,
+        1
+      ],
+      "b_stride": [
+        8960,
+        1
+      ],
+      "as_stride": [
+        68,
+        1
+      ],
+      "bs_stride": [
+        68,
+        1
+      ],
+      "a_dtype": "float8_e4m3fn",
+      "b_dtype": "float8_e4m3fn",
+      "as_dtype": "float32",
+      "bs_dtype": "float32",
+      "output_dtype": "bfloat16",
+      "block_size": [
+        128,
+        128
+      ],
+      "regime": "prefill",
+      "seed": 2200006,
+      "call_count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_source": "zero_weight_hard_gate",
+      "count": 0,
+      "coverage_role": "zero_weight_generality_gate",
+      "route_expectation": "native_hip_general_route",
+      "synthetic": true
+    }
+  ]
+}

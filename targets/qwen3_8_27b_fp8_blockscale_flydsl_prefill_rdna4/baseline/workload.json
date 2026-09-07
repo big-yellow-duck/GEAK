@@ -1,0 +1,7856 @@
+{
+  "schema": "workload-v1",
+  "target": "Qwen3.8-27B FP8 blockscale FlyDSL broad-prefill generalization on RDNA4",
+  "model": "Qwen/Qwen3.8-27B-FP8",
+  "revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+  "hardware": {
+    "gfx": "gfx1201",
+    "arch_class": "rdna4",
+    "wave_size": 32,
+    "physical_cu_count": 64,
+    "wgp_count": 32
+  },
+  "metric": "captured_prefill_counted_ratio_of_sums_with_broad_flydsl_hard_gates",
+  "seed_weighted_total_ms": 550.3587022423744,
+  "cases": [
+    {
+      "sig": "decode_m1_n5120_k3072_bn128_bk128",
+      "M": 1,
+      "N": 5120,
+      "K": 3072,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1707,
+      "dims": [
+        [
+          1,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          1,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.06553100049495697,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m1_n5120_k8704_bn128_bk128",
+      "M": 1,
+      "N": 5120,
+      "K": 8704,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1709,
+      "dims": [
+        [
+          1,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          1,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.10969149693846703,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m1_n7168_k5120_bn128_bk128",
+      "M": 1,
+      "N": 7168,
+      "K": 5120,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1710,
+      "dims": [
+        [
+          1,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          1,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.07789650186896324,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m1_n8192_k5120_bn128_bk128",
+      "M": 1,
+      "N": 8192,
+      "K": 5120,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1706,
+      "dims": [
+        [
+          1,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          1,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.0752209983766079,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m1_n17408_k5120_bn128_bk128",
+      "M": 1,
+      "N": 17408,
+      "K": 5120,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1708,
+      "dims": [
+        [
+          1,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          1,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.1768224984407425,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m2_n5120_k3072_bn128_bk128",
+      "M": 2,
+      "N": 5120,
+      "K": 3072,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1727,
+      "dims": [
+        [
+          2,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          2,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.05993599817156792,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m2_n5120_k8704_bn128_bk128",
+      "M": 2,
+      "N": 5120,
+      "K": 8704,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1729,
+      "dims": [
+        [
+          2,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          2,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.10482149943709373,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m2_n7168_k5120_bn128_bk128",
+      "M": 2,
+      "N": 7168,
+      "K": 5120,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1730,
+      "dims": [
+        [
+          2,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          2,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.07871599867939949,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m2_n8192_k5120_bn128_bk128",
+      "M": 2,
+      "N": 8192,
+      "K": 5120,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1726,
+      "dims": [
+        [
+          2,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          2,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.0803464986383915,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "decode_m2_n17408_k5120_bn128_bk128",
+      "M": 2,
+      "N": 17408,
+      "K": 5120,
+      "regime": "decode",
+      "coverage_role": "captured_flydsl_decode_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1728,
+      "dims": [
+        [
+          2,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          2,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.17733249813318253,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_flydsl_decode_regression_gate"
+    },
+    {
+      "sig": "prefill_m72_n5120_k3072_bn128_bk128",
+      "M": 72,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1702,
+      "dims": [
+        [
+          72,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          72,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.06787599995732307,
+      "weight": 4.344063997268677,
+      "weight_norm": 0.007893150375508334,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m72_n5120_k8704_bn128_bk128",
+      "M": 72,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1704,
+      "dims": [
+        [
+          72,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          72,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.12693149596452713,
+      "weight": 8.123615741729736,
+      "weight_norm": 0.014760583794952238,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m72_n7168_k5120_bn128_bk128",
+      "M": 72,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1705,
+      "dims": [
+        [
+          72,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          72,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.0982615016400814,
+      "weight": 1.5721840262413025,
+      "weight_norm": 0.002856653342330404,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m72_n8192_k5120_bn128_bk128",
+      "M": 72,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1701,
+      "dims": [
+        [
+          72,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          72,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.10164099931716919,
+      "weight": 4.878767967224121,
+      "weight_norm": 0.008864705777061636,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m72_n17408_k5120_bn128_bk128",
+      "M": 72,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1703,
+      "dims": [
+        [
+          72,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          72,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.21581299602985382,
+      "weight": 13.812031745910645,
+      "weight_norm": 0.025096417463074682,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m138_n5120_k3072_bn128_bk128",
+      "M": 138,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1712,
+      "dims": [
+        [
+          138,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          138,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.07489650323987007,
+      "weight": 4.793376207351685,
+      "weight_norm": 0.008709549222755294,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m138_n5120_k8704_bn128_bk128",
+      "M": 138,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1714,
+      "dims": [
+        [
+          138,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          138,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.14611250162124634,
+      "weight": 9.351200103759766,
+      "weight_norm": 0.016991100650647215,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m138_n7168_k5120_bn128_bk128",
+      "M": 138,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1715,
+      "dims": [
+        [
+          138,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          138,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.1481419950723648,
+      "weight": 2.370271921157837,
+      "weight_norm": 0.0043067764923138884,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m138_n8192_k5120_bn128_bk128",
+      "M": 138,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1711,
+      "dims": [
+        [
+          138,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          138,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.15567199885845184,
+      "weight": 7.4722559452056885,
+      "weight_norm": 0.013577065129997627,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m138_n17408_k5120_bn128_bk128",
+      "M": 138,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1713,
+      "dims": [
+        [
+          138,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          138,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.2717690020799637,
+      "weight": 17.393216133117676,
+      "weight_norm": 0.031603418029461476,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m139_n5120_k3072_bn128_bk128",
+      "M": 139,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1717,
+      "dims": [
+        [
+          139,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          139,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.07627600058913231,
+      "weight": 4.881664037704468,
+      "weight_norm": 0.00886996792785265,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m139_n5120_k8704_bn128_bk128",
+      "M": 139,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1719,
+      "dims": [
+        [
+          139,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          139,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.14743699878454208,
+      "weight": 9.435967922210693,
+      "weight_norm": 0.017145123505388226,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m139_n7168_k5120_bn128_bk128",
+      "M": 139,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1720,
+      "dims": [
+        [
+          139,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          139,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.14778199791908264,
+      "weight": 2.3645119667053223,
+      "weight_norm": 0.0042963106735141735,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m139_n8192_k5120_bn128_bk128",
+      "M": 139,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1716,
+      "dims": [
+        [
+          139,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          139,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.15502699464559555,
+      "weight": 7.441295742988586,
+      "weight_norm": 0.013520810541688296,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m139_n17408_k5120_bn128_bk128",
+      "M": 139,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1718,
+      "dims": [
+        [
+          139,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          139,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.26933400332927704,
+      "weight": 17.23737621307373,
+      "weight_norm": 0.03132025739366342,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m249_n5120_k3072_bn128_bk128",
+      "M": 249,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1742,
+      "dims": [
+        [
+          249,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          249,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.08647600188851357,
+      "weight": 5.534464120864868,
+      "weight_norm": 0.010056103589014435,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m249_n5120_k8704_bn128_bk128",
+      "M": 249,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1744,
+      "dims": [
+        [
+          249,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          249,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.1810230016708374,
+      "weight": 11.585472106933594,
+      "weight_norm": 0.02105076572738815,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m249_n7168_k5120_bn128_bk128",
+      "M": 249,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1745,
+      "dims": [
+        [
+          249,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          249,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.1612125039100647,
+      "weight": 2.579400062561035,
+      "weight_norm": 0.004686761655719371,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m249_n8192_k5120_bn128_bk128",
+      "M": 249,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1741,
+      "dims": [
+        [
+          249,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          249,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.16610249876976013,
+      "weight": 7.972919940948486,
+      "weight_norm": 0.01448677000738559,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m249_n17408_k5120_bn128_bk128",
+      "M": 249,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1743,
+      "dims": [
+        [
+          249,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          249,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.3370700031518936,
+      "weight": 21.57248020172119,
+      "weight_norm": 0.039197127462192484,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m277_n5120_k3072_bn128_bk128",
+      "M": 277,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1722,
+      "dims": [
+        [
+          277,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          277,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.1105015017092228,
+      "weight": 7.072096109390259,
+      "weight_norm": 0.01284997598943344,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m277_n5120_k8704_bn128_bk128",
+      "M": 277,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1724,
+      "dims": [
+        [
+          277,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          277,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.24324849992990494,
+      "weight": 15.567903995513916,
+      "weight_norm": 0.0282868317191756,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m277_n7168_k5120_bn128_bk128",
+      "M": 277,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1725,
+      "dims": [
+        [
+          277,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          277,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.1844329982995987,
+      "weight": 2.950927972793579,
+      "weight_norm": 0.005361826679164618,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m277_n8192_k5120_bn128_bk128",
+      "M": 277,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1721,
+      "dims": [
+        [
+          277,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          277,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.1985979974269867,
+      "weight": 9.532703876495361,
+      "weight_norm": 0.017320892424623133,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m277_n17408_k5120_bn128_bk128",
+      "M": 277,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1723,
+      "dims": [
+        [
+          277,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          277,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.39905600249767303,
+      "weight": 25.539584159851074,
+      "weight_norm": 0.04640534265342389,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m523_n5120_k3072_bn128_bk128",
+      "M": 523,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1732,
+      "dims": [
+        [
+          523,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          523,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 128,
+      "baseline_latency_ms": 0.15239699929952621,
+      "weight": 19.506815910339355,
+      "weight_norm": 0.035443822057979704,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m523_n5120_k8704_bn128_bk128",
+      "M": 523,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1734,
+      "dims": [
+        [
+          523,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          523,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 128,
+      "baseline_latency_ms": 0.3619554936885834,
+      "weight": 46.33030319213867,
+      "weight_norm": 0.08418201257356535,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m523_n7168_k5120_bn128_bk128",
+      "M": 523,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1735,
+      "dims": [
+        [
+          523,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          523,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 32,
+      "baseline_latency_ms": 0.2973489910364151,
+      "weight": 9.515167713165283,
+      "weight_norm": 0.01728902927199444,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m523_n8192_k5120_bn128_bk128",
+      "M": 523,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1731,
+      "dims": [
+        [
+          523,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          523,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 96,
+      "baseline_latency_ms": 0.328064501285553,
+      "weight": 31.494192123413086,
+      "weight_norm": 0.05722484625952775,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m523_n17408_k5120_bn128_bk128",
+      "M": 523,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1733,
+      "dims": [
+        [
+          523,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          523,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 128,
+      "baseline_latency_ms": 0.6581839919090271,
+      "weight": 84.24755096435547,
+      "weight_norm": 0.15307753038354502,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m784_n5120_k3072_bn128_bk128",
+      "M": 784,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1737,
+      "dims": [
+        [
+          784,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          784,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.19611750543117523,
+      "weight": 12.551520347595215,
+      "weight_norm": 0.0228060722878651,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m784_n5120_k8704_bn128_bk128",
+      "M": 784,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1739,
+      "dims": [
+        [
+          784,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          784,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.4798415005207062,
+      "weight": 30.709856033325195,
+      "weight_norm": 0.05579971009489148,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m784_n7168_k5120_bn128_bk128",
+      "M": 784,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1740,
+      "dims": [
+        [
+          784,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          784,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 16,
+      "baseline_latency_ms": 0.39818599820137024,
+      "weight": 6.370975971221924,
+      "weight_norm": 0.011576042943018982,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m784_n8192_k5120_bn128_bk128",
+      "M": 784,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1736,
+      "dims": [
+        [
+          784,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          784,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 48,
+      "baseline_latency_ms": 0.4606564939022064,
+      "weight": 22.111511707305908,
+      "weight_norm": 0.04017654598212956,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "prefill_m784_n17408_k5120_bn128_bk128",
+      "M": 784,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "scored_captured_prefill",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1738,
+      "dims": [
+        [
+          784,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          784,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 64,
+      "baseline_latency_ms": 0.9709540009498596,
+      "weight": 62.141056060791016,
+      "weight_norm": 0.11291009991775236,
+      "weight_source": "captured_call_count_x_vllm_baseline_latency"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m4_n5120_k3072_bn128_bk128",
+      "M": 4,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200000,
+      "dims": [
+        [
+          4,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          4,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m4_n7168_k5120_bn128_bk128",
+      "M": 4,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200001,
+      "dims": [
+        [
+          4,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          4,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m16_n5120_k8704_bn128_bk128",
+      "M": 16,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200002,
+      "dims": [
+        [
+          16,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          16,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m17_n5120_k3072_bn128_bk128",
+      "M": 17,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200003,
+      "dims": [
+        [
+          17,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          17,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m32_n17408_k5120_bn128_bk128",
+      "M": 32,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200004,
+      "dims": [
+        [
+          32,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          32,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m33_n17408_k5120_bn128_bk128",
+      "M": 33,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200005,
+      "dims": [
+        [
+          33,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          33,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m33_n5120_k8704_bn128_bk128",
+      "M": 33,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200006,
+      "dims": [
+        [
+          33,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          33,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m48_n17408_k5120_bn128_bk128",
+      "M": 48,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200007,
+      "dims": [
+        [
+          48,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          48,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "flydsl_seed_route_guard_m64_n5120_k3072_bn128_bk128",
+      "M": 64,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "flydsl_seed_route_guard",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200008,
+      "dims": [
+        [
+          64,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          64,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m32_n5120_k8704_bn128_bk128",
+      "M": 32,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200009,
+      "dims": [
+        [
+          32,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          32,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m63_n17408_k5120_bn128_bk128",
+      "M": 63,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200011,
+      "dims": [
+        [
+          63,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          63,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m64_n17408_k5120_bn128_bk128",
+      "M": 64,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200012,
+      "dims": [
+        [
+          64,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          64,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m65_n5120_k3072_bn128_bk128",
+      "M": 65,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200013,
+      "dims": [
+        [
+          65,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          65,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m65_n5120_k8704_bn128_bk128",
+      "M": 65,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200014,
+      "dims": [
+        [
+          65,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          65,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m65_n7168_k5120_bn128_bk128",
+      "M": 65,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200015,
+      "dims": [
+        [
+          65,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          65,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m65_n8192_k5120_bn128_bk128",
+      "M": 65,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200016,
+      "dims": [
+        [
+          65,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          65,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m65_n17408_k5120_bn128_bk128",
+      "M": 65,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200017,
+      "dims": [
+        [
+          65,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          65,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m80_n5120_k8704_bn128_bk128",
+      "M": 80,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200018,
+      "dims": [
+        [
+          80,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          80,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m96_n5120_k3072_bn128_bk128",
+      "M": 96,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200019,
+      "dims": [
+        [
+          96,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          96,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m96_n5120_k8704_bn128_bk128",
+      "M": 96,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200020,
+      "dims": [
+        [
+          96,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          96,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m96_n7168_k5120_bn128_bk128",
+      "M": 96,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200021,
+      "dims": [
+        [
+          96,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          96,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m96_n8192_k5120_bn128_bk128",
+      "M": 96,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200022,
+      "dims": [
+        [
+          96,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          96,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m96_n17408_k5120_bn128_bk128",
+      "M": 96,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200023,
+      "dims": [
+        [
+          96,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          96,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m127_n17408_k5120_bn128_bk128",
+      "M": 127,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200024,
+      "dims": [
+        [
+          127,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          127,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m128_n5120_k8704_bn128_bk128",
+      "M": 128,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200025,
+      "dims": [
+        [
+          128,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          128,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m129_n5120_k8704_bn128_bk128",
+      "M": 129,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200026,
+      "dims": [
+        [
+          129,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          129,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m192_n5120_k8704_bn128_bk128",
+      "M": 192,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200027,
+      "dims": [
+        [
+          192,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          192,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m224_n8192_k5120_bn128_bk128",
+      "M": 224,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200028,
+      "dims": [
+        [
+          224,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          224,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m225_n7168_k5120_bn128_bk128",
+      "M": 225,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200029,
+      "dims": [
+        [
+          225,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          225,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m240_n5120_k3072_bn128_bk128",
+      "M": 240,
+      "N": 5120,
+      "K": 3072,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200030,
+      "dims": [
+        [
+          240,
+          3072
+        ],
+        [
+          5120,
+          3072
+        ],
+        [
+          240,
+          24
+        ],
+        [
+          40,
+          24
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          3072,
+          1
+        ],
+        [
+          3328,
+          1
+        ],
+        [
+          24,
+          1
+        ],
+        [
+          24,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m240_n5120_k8704_bn128_bk128",
+      "M": 240,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200031,
+      "dims": [
+        [
+          240,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          240,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m240_n7168_k5120_bn128_bk128",
+      "M": 240,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200032,
+      "dims": [
+        [
+          240,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          240,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m240_n8192_k5120_bn128_bk128",
+      "M": 240,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200033,
+      "dims": [
+        [
+          240,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          240,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m240_n17408_k5120_bn128_bk128",
+      "M": 240,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200034,
+      "dims": [
+        [
+          240,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          240,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m256_n8192_k5120_bn128_bk128",
+      "M": 256,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200035,
+      "dims": [
+        [
+          256,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          256,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m257_n8192_k5120_bn128_bk128",
+      "M": 257,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200036,
+      "dims": [
+        [
+          257,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          257,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m384_n17408_k5120_bn128_bk128",
+      "M": 384,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200037,
+      "dims": [
+        [
+          384,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          384,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m512_n5120_k8704_bn128_bk128",
+      "M": 512,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200038,
+      "dims": [
+        [
+          512,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          512,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m640_n8192_k5120_bn128_bk128",
+      "M": 640,
+      "N": 8192,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200039,
+      "dims": [
+        [
+          640,
+          5120
+        ],
+        [
+          8192,
+          5120
+        ],
+        [
+          640,
+          40
+        ],
+        [
+          64,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m768_n5120_k8704_bn128_bk128",
+      "M": 768,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200040,
+      "dims": [
+        [
+          768,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          768,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m783_n5120_k8704_bn128_bk128",
+      "M": 783,
+      "N": 5120,
+      "K": 8704,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200041,
+      "dims": [
+        [
+          783,
+          8704
+        ],
+        [
+          5120,
+          8704
+        ],
+        [
+          783,
+          68
+        ],
+        [
+          40,
+          68
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          8704,
+          1
+        ],
+        [
+          8960,
+          1
+        ],
+        [
+          68,
+          1
+        ],
+        [
+          68,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m785_n17408_k5120_bn128_bk128",
+      "M": 785,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200042,
+      "dims": [
+        [
+          785,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          785,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m832_n7168_k5120_bn128_bk128",
+      "M": 832,
+      "N": 7168,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200043,
+      "dims": [
+        [
+          832,
+          5120
+        ],
+        [
+          7168,
+          5120
+        ],
+        [
+          832,
+          40
+        ],
+        [
+          56,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "heldout_prefill_generalization_m1024_n17408_k5120_bn128_bk128",
+      "M": 1024,
+      "N": 17408,
+      "K": 5120,
+      "regime": "prefill",
+      "coverage_role": "heldout_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200044,
+      "dims": [
+        [
+          1024,
+          5120
+        ],
+        [
+          17408,
+          5120
+        ],
+        [
+          1024,
+          40
+        ],
+        [
+          136,
+          40
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          5120,
+          1
+        ],
+        [
+          5376,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_generalization_gate"
+    },
+    {
+      "sig": "portable_prefill_m65_n128_k128_bn128_bk128",
+      "M": 65,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200045,
+      "dims": [
+        [
+          65,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          65,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m65_n1024_k2176_bn128_bk128",
+      "M": 65,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200046,
+      "dims": [
+        [
+          65,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          65,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m127_n128_k128_bn128_bk128",
+      "M": 127,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200047,
+      "dims": [
+        [
+          127,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          127,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m127_n1024_k2176_bn128_bk128",
+      "M": 127,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200048,
+      "dims": [
+        [
+          127,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          127,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m128_n128_k128_bn128_bk128",
+      "M": 128,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200049,
+      "dims": [
+        [
+          128,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          128,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m128_n1024_k2176_bn128_bk128",
+      "M": 128,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200050,
+      "dims": [
+        [
+          128,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          128,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m129_n128_k128_bn128_bk128",
+      "M": 129,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200051,
+      "dims": [
+        [
+          129,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          129,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m129_n1024_k2176_bn128_bk128",
+      "M": 129,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200052,
+      "dims": [
+        [
+          129,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          129,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m255_n128_k128_bn128_bk128",
+      "M": 255,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200053,
+      "dims": [
+        [
+          255,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          255,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m255_n1024_k2176_bn128_bk128",
+      "M": 255,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200054,
+      "dims": [
+        [
+          255,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          255,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m256_n128_k128_bn128_bk128",
+      "M": 256,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200055,
+      "dims": [
+        [
+          256,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          256,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m256_n1024_k2176_bn128_bk128",
+      "M": 256,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200056,
+      "dims": [
+        [
+          256,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          256,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m257_n128_k128_bn128_bk128",
+      "M": 257,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200057,
+      "dims": [
+        [
+          257,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          257,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m257_n1024_k2176_bn128_bk128",
+      "M": 257,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200058,
+      "dims": [
+        [
+          257,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          257,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m511_n128_k128_bn128_bk128",
+      "M": 511,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200059,
+      "dims": [
+        [
+          511,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          511,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m511_n1024_k2176_bn128_bk128",
+      "M": 511,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200060,
+      "dims": [
+        [
+          511,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          511,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m512_n128_k128_bn128_bk128",
+      "M": 512,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200061,
+      "dims": [
+        [
+          512,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          512,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m512_n1024_k2176_bn128_bk128",
+      "M": 512,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200062,
+      "dims": [
+        [
+          512,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          512,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m1024_n128_k128_bn128_bk128",
+      "M": 1024,
+      "N": 128,
+      "K": 128,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200063,
+      "dims": [
+        [
+          1024,
+          128
+        ],
+        [
+          128,
+          128
+        ],
+        [
+          1024,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "portable_prefill_m1024_n1024_k2176_bn128_bk128",
+      "M": 1024,
+      "N": 1024,
+      "K": 2176,
+      "regime": "prefill",
+      "coverage_role": "portable_prefill_generalization",
+      "route_expectation": "generalize_to_flydsl",
+      "seed": 1200064,
+      "dims": [
+        [
+          1024,
+          2176
+        ],
+        [
+          1024,
+          2176
+        ],
+        [
+          1024,
+          17
+        ],
+        [
+          8,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2307,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_portability_gate"
+    },
+    {
+      "sig": "decode_k_guard_m1_n5120_k128_bn128_bk128",
+      "M": 1,
+      "N": 5120,
+      "K": 128,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200065,
+      "dims": [
+        [
+          1,
+          128
+        ],
+        [
+          5120,
+          128
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    },
+    {
+      "sig": "decode_k_guard_m1_n5120_k384_bn128_bk128",
+      "M": 1,
+      "N": 5120,
+      "K": 384,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200066,
+      "dims": [
+        [
+          1,
+          384
+        ],
+        [
+          5120,
+          384
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          40,
+          3
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          384,
+          1
+        ],
+        [
+          387,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          3,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    },
+    {
+      "sig": "decode_k_guard_m1_n5120_k640_bn128_bk128",
+      "M": 1,
+      "N": 5120,
+      "K": 640,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200067,
+      "dims": [
+        [
+          1,
+          640
+        ],
+        [
+          5120,
+          640
+        ],
+        [
+          1,
+          5
+        ],
+        [
+          40,
+          5
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          640,
+          1
+        ],
+        [
+          643,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          5,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    },
+    {
+      "sig": "decode_k_guard_m1_n5120_k2176_bn128_bk128",
+      "M": 1,
+      "N": 5120,
+      "K": 2176,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200068,
+      "dims": [
+        [
+          1,
+          2176
+        ],
+        [
+          5120,
+          2176
+        ],
+        [
+          1,
+          17
+        ],
+        [
+          40,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2179,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    },
+    {
+      "sig": "decode_k_guard_m2_n5120_k128_bn128_bk128",
+      "M": 2,
+      "N": 5120,
+      "K": 128,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200069,
+      "dims": [
+        [
+          2,
+          128
+        ],
+        [
+          5120,
+          128
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          40,
+          1
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          128,
+          1
+        ],
+        [
+          131,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    },
+    {
+      "sig": "decode_k_guard_m2_n5120_k384_bn128_bk128",
+      "M": 2,
+      "N": 5120,
+      "K": 384,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200070,
+      "dims": [
+        [
+          2,
+          384
+        ],
+        [
+          5120,
+          384
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          40,
+          3
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          384,
+          1
+        ],
+        [
+          387,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          3,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    },
+    {
+      "sig": "decode_k_guard_m2_n5120_k640_bn128_bk128",
+      "M": 2,
+      "N": 5120,
+      "K": 640,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200071,
+      "dims": [
+        [
+          2,
+          640
+        ],
+        [
+          5120,
+          640
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          40,
+          5
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          640,
+          1
+        ],
+        [
+          643,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          5,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    },
+    {
+      "sig": "decode_k_guard_m2_n5120_k2176_bn128_bk128",
+      "M": 2,
+      "N": 5120,
+      "K": 2176,
+      "regime": "decode",
+      "coverage_role": "flydsl_decode_k_regression",
+      "route_expectation": "preserve_flydsl_seed",
+      "seed": 1200072,
+      "dims": [
+        [
+          2,
+          2176
+        ],
+        [
+          5120,
+          2176
+        ],
+        [
+          2,
+          17
+        ],
+        [
+          40,
+          17
+        ]
+      ],
+      "dtypes": [
+        "float8_e4m3fn",
+        "float8_e4m3fn",
+        "float32",
+        "float32"
+      ],
+      "strides": [
+        [
+          2176,
+          1
+        ],
+        [
+          2179,
+          1
+        ],
+        [
+          17,
+          1
+        ],
+        [
+          17,
+          1
+        ]
+      ],
+      "quant": {
+        "scheme": "w8a8_fp8_block_scale",
+        "block_size": [
+          128,
+          128
+        ],
+        "output_dtype": "bfloat16",
+        "weight_is_n_by_k": true,
+        "scale_accumulation_dtype": "float32"
+      },
+      "count": 0,
+      "baseline_latency_ms": 0.0,
+      "weight": 0.0,
+      "weight_norm": 0.0,
+      "weight_source": "zero_weight_decode_regression_gate"
+    }
+  ]
+}

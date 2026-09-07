@@ -1,0 +1,60 @@
+{
+  "kernel_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_flydsl_prefill_rdna4/baseline",
+  "workflow_dir": "/app/GEAK/kernel_workflow",
+  "mode": "optimize",
+  "target_language": "flydsl",
+  "gpu_ids": "0",
+  "gpu_mode": "pin",
+  "budget": 32,
+  "min_improve": 0.005,
+  "candidate_floor": 1.0,
+  "progress_delta": 0.001,
+  "max_no_improve": 32,
+  "deep_cost": 4,
+  "dra_enabled": "false",
+  "apply_to_original": "false",
+  "update_experience": "on",
+  "enable_fp8": "true",
+  "agent_timeout_ms": 3600000,
+  "workload_spec_path": "/app/GEAK/targets/qwen3_8_27b_fp8_blockscale_flydsl_prefill_rdna4/baseline/workload.json",
+  "task": "Before planning, read kernel_src/EXPERIMENT_CONTEXT.md completely and treat it as mandatory campaign memory. Use the full 32-direction budget unless correctness or infrastructure blocks progress. This is a standalone FlyDSL gfx1201 campaign seeded by the current M=1..64 raw-weight kernel plus the live vLLM Triton fallback for broader M. Expand the implementation with multiple optimized FlyDSL prefill kernel variants and compact coarse routing over M/tile-count, N-grid, and K-block regimes; do not optimize Triton and do not use exact captured-M or exact (M,N,K) tables. Preserve the existing FlyDSL M=1..64 routes and the exact FP32-per-K128 scaled-partial accumulation, BF16 output, arbitrary padded B row stride, fresh outputs, current-input behavior, graph safety, and one device dispatch. No AITER, CK, CDNA MFMA, gfx1250-only features, weight preshuffle, persistent weight copies, activation/output memoization, extra reduction dispatches, or changes outside kernel_src. The primary score is the counted ratio of sums over 35 captured Qwen3.8-27B-FP8 prefill cases. All decode, existing-route, boundary, cross-section, and non-Qwen portability cases are zero-weight hard gates and must remain at least 0.98x. Require five-draw live parity at rtol=0.02 and atol=0.0625 plus output independence. Bank only reproducible gains of at least 0.5%, require every banked patch to add or improve a genuinely general FlyDSL route bucket with source/profile engagement proof, and target at least 1.01x final weighted speedup with gains distributed across the scored families. Start with M=65..128, then M=129..256, M=257..512, and M=513..1024; explore BM/BN geometry, waves per workgroup, raw-B reuse, LDS layouts, split signal/wait scheduling via gfx12_sync, prefetch distance, WMMA scheduling, scale-load overlap, K-loop policy, epilogue layout, and WGP grid fill. Before final promotion run three cache-flushed reversed-order paired passes, CUDA-graph replay, and report per-family FlyDSL coverage plus ISA VGPR/SGPR/LDS/workgroup and ATT hotspot evidence.",
+  "op_spec": {
+    "op_kind": "gemm",
+    "language": "flydsl",
+    "implementation": "standalone FlyDSL gfx120x WMMA raw-weight block-scaled FP8 GEMM router",
+    "dtype": "fp8_e4m3fn",
+    "output_dtype": "bfloat16",
+    "block_size": [128, 128],
+    "bias": false,
+    "transpose_b": true,
+    "regime": "both",
+    "input_dtypes": [
+      "float8_e4m3fn",
+      "float8_e4m3fn",
+      "float32",
+      "float32"
+    ],
+    "scale_dtype": "float32",
+    "accumulation_dtype": "float32",
+    "m_range": [1, 1024],
+    "n_multiple": 128,
+    "k_multiple": 128,
+    "correctness": {
+      "rtol": 0.02,
+      "atol": 0.0625,
+      "random_draws": 5,
+      "fresh_output_required": true,
+      "flydsl_engagement_required_for_claimed_routes": true
+    },
+    "hardware": {
+      "gfx": "gfx1201",
+      "arch_class": "rdna4",
+      "wave_size": 32,
+      "physical_cu_count": 64,
+      "wgp_count": 32
+    },
+    "layout_contract": "A[M,K] and A_scale[M,K/128] are contiguous. B is logical [N,K] with stride(1)=1 and arbitrary padded stride(0). B_scale[N/128,K/128] is contiguous.",
+    "math_contract": "For each K128 block, complete the FP8 dot in FP32, multiply its independent FP32 A/B scales, accumulate scaled blocks in FP32, and cast once to BF16.",
+    "routing_contract": "Use a small explainable family of FlyDSL routes based on M/tile count, N-grid, and K-block regimes. Never route by exact captured shape or model identity."
+  }
+}

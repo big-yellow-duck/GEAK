@@ -1,0 +1,11 @@
+capture/*.jsonl
+capture/*.log
+capture/*.json
+capture/*.pt
+capture/gpu_use.jsonl
+__pycache__/
+*.py[cod]
+baseline/__pycache__/
+!capture/.gitkeep
+!capture/manifest.json
+!capture/summary.json
