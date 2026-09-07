@@ -360,11 +360,15 @@ none of them, so skip this whole block then):**
   # (reference_io.pt, if present) is an absolute symlink in CANONICAL; this tar carries it verbatim so
   # best/ shares the one physical file — never add -h/--dereference. NO `rm` (it
   # prompts and blocks autonomous runs): stage into a UNIQUE tmp, then atomically swap with mv-aside.
-  TMP="$STATE_DIR/best.tmp_$(date +%s)_$$"; mkdir -p "$TMP"
-  ( cd "$CANONICAL" && tar --exclude='./.git' --exclude='*/build' --exclude='*/__pycache__' \
-      --exclude='*/.torch_ext' --exclude='*.so' --exclude='*.o' -cf - . ) | ( cd "$TMP" && tar -xf - )
+  # Issue #429: materialize_workspace.sh (recursive *.so exclude + optional aiter share). Never -h.
+  TMP="$STATE_DIR/best.tmp_$(date +%s)_$$"
+  bash "${WORKFLOW_DIR:-$SKILL_DIR}/scripts/materialize_workspace.sh" \
+    --src "$CANONICAL" --dst "$TMP" \
+    --shared-root "${EVAL_DIR:-$STATE_DIR}/_shared" --link-aiter
   [ -e "$STATE_DIR/best" ] && mv "$STATE_DIR/best" "$STATE_DIR/best.old_$(date +%s)_$$" 2>/dev/null || true
   mv "$TMP" "$STATE_DIR/best"
+  # Soft reclaim of prior best.old_* trees (keep latest one for rollback).
+  bash "${WORKFLOW_DIR:-$SKILL_DIR}/scripts/reclaim_eval_artifacts.sh" --eval-dir "${EVAL_DIR:-$STATE_DIR}" --keep-round 0 2>/dev/null || true
   ```
   Then write `$STATE_DIR/STATE.json` = `{cumulative: <CUMULATIVE_SPEEDUP>, insights, ledger,
   bottleneck_now, best_per_case: <BEST_PER_CASE>, last_round: <ROUND>}` (the full carried-forward state).
@@ -413,7 +417,21 @@ table, `BASELINE_TIMING`, and `BASELINE_GEOMEAN_MS`.
    - **Final per-test-case table** (baseline ms / optimized ms / speedup; + `count` & weight-share
      when workload-aligned) + geomean + arithmetic + the time-weighted speedup.
    - **Key optimizations applied** (what + impact).
-   - **What didn't work** (dead-ends from the ledger).
+   - **What didn't work** (dead-ends from the ledger). End this section with the machine-readable
+     block below, in ADDITION to your prose — it is what the experience store keeps, so the next run
+     on this kernel does not spend a round re-funding a direction you already closed. One entry per
+     closed direction; `measured` is the number you actually observed, and if you did not measure it,
+     say so in `mechanism` instead of inventing a figure. Omit the block entirely if nothing was
+     closed with evidence — an empty block is worse than none.
+
+     ````
+     <!-- dead-ends:yaml -->
+     ```yaml
+     - idea: use_buffer_ops=OFF negative control
+       measured: 0.883x
+       mechanism: the ambient default is load-bearing, -11.7%
+     ```
+     ````
 
 Return JSON:
 ```json

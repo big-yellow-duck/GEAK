@@ -21,7 +21,8 @@
 #
 # Optional env overrides:
 #   GEAK_ROOT                 default: the GEAK repo two levels up from this script (ci/..)
-#   PERFSKILLS_E2E_TIMEOUT_S  geak's REAL wall-clock budget in seconds (default in ci/config.sh)
+#   PERFSKILLS_E2E_TIMEOUT_S  geak's REAL wall-clock budget in seconds (default in ci/config.sh);
+#                             forwarded to run_e2e.py as GEAK_E2E_TIMEOUT_S, which can also be set directly
 #   EXP_ROOT                  writable run root; patches handoff.exp_root (default: <model_dir>/repro_out/exp)
 #   MODEL_PATH                real served model dir; patches handoff.model_path (default: keep handoff value)
 #   INFERENCEX_PATH           InferenceX checkout  -> bench_client=inferencex (else geak falls back to native)
@@ -135,10 +136,11 @@ json.dump(h, open(dst, "w"), indent=2)
 # ---- B. reachability check: absolute paths run_e2e.py OPENS as real local
 # files/dirs must EXIST; informational/metadata paths may legitimately be absent.
 # CRITICAL = the keys run_e2e dereferences as real local paths (a stale value here
-# breaks the run). Everything else — e.g. the schema-2 baseline_env_spec.* block,
-# which run_e2e never reads — is advisory: note it, don't block. Existence, not a
-# source-prefix blacklist. Hard-fail on real runs only for CRITICAL leaks; warn in
-# --dry-run (weights/etc. legitimately absent).
+# breaks the run). The schema-2 baseline_env_spec is now consumed to build the
+# effective flags/env/overlay stack. Its nested paths stay informational here
+# because they may be container-visible even when the host cannot stat them;
+# the effective-config resolver still incorporates them into its descriptor.
+# Hard-fail on real runs only for CRITICAL leaks; warn in --dry-run.
 CRITICAL = {"model_path", "exp_root", "launch_recipe", "inferencex_path"}
 def _top(path):   # top-level handoff key for a (possibly nested) scan path
     return path.split(".", 1)[0].split("[", 1)[0]
@@ -172,13 +174,19 @@ PY
 # ---- Budget: reaches run_e2e as the --timeout-s value below (its own env knob is
 # GEAK_E2E_TIMEOUT_S, which this name has never matched). ----
 export PERFSKILLS_E2E_TIMEOUT_S   # value/default from ci/config.sh
+export GEAK_E2E_TIMEOUT_S="${GEAK_E2E_TIMEOUT_S:-$PERFSKILLS_E2E_TIMEOUT_S}"
 
 # ---- Agent workflow knobs ----
 export GEAK_AGENT_BACKEND="${GEAK_AGENT_BACKEND:-claude}"
 export GEAK_CODEX_MODEL="${GEAK_CODEX_MODEL:-gpt-5.6-sol}"
 export GEAK_CODEX_REASONING_EFFORT="${GEAK_CODEX_REASONING_EFFORT:-high}"
-export PERFSKILLS_CLAUDE_MODEL="${PERFSKILLS_CLAUDE_MODEL:-claude-opus-4-8}"
+export PERFSKILLS_CLAUDE_MODEL="${PERFSKILLS_CLAUDE_MODEL:-claude-opus-5}"
 export PERFSKILLS_CLAUDE_EFFORT="${PERFSKILLS_CLAUDE_EFFORT:-ultracode}"
+# run_e2e.py reads its own GEAK_CLAUDE_MODEL (its built-in default is older than the
+# CI default above), so pin it to the CI model or the SDK dispatch silently uses a
+# different model than claude_setup.sh configured for the CLI path.
+export GEAK_CLAUDE_MODEL="${GEAK_CLAUDE_MODEL:-$PERFSKILLS_CLAUDE_MODEL}"
+export GEAK_CLAUDE_EFFORT="${GEAK_CLAUDE_EFFORT:-$PERFSKILLS_CLAUDE_EFFORT}"
 
 # (INFERENCEX_PATH / BENCH_LAUNCHER already exported above.)
 
@@ -187,11 +195,11 @@ echo " GEAK e2e reproduction"
 echo "   runner   = $RUNNER"
 echo "   handoff  = $HANDOFF"
 echo "   result   = $RESULT"
-echo "   budget   = PERFSKILLS_E2E_TIMEOUT_S=$PERFSKILLS_E2E_TIMEOUT_S s"
+echo "   budget   = GEAK_E2E_TIMEOUT_S=$GEAK_E2E_TIMEOUT_S s (from PERFSKILLS_E2E_TIMEOUT_S=$PERFSKILLS_E2E_TIMEOUT_S)"
 if [ "$GEAK_AGENT_BACKEND" = codex ]; then
   echo "   agent    = codex $GEAK_CODEX_MODEL / reasoning=$GEAK_CODEX_REASONING_EFFORT"
 else
-  echo "   agent    = claude $PERFSKILLS_CLAUDE_MODEL / effort=$PERFSKILLS_CLAUDE_EFFORT"
+  echo "   agent    = claude $GEAK_CLAUDE_MODEL / effort=$GEAK_CLAUDE_EFFORT"
 fi
 echo "   bench_launcher = $BENCH_LAUNCHER"
 echo "   inferencex_path = ${INFERENCEX_PATH:-<unset -> native bench>}"
