@@ -40,6 +40,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    # Package import under pytest / module use.
+    from interface.effective_config import resolve_effective_config
+except ModuleNotFoundError:  # Direct: python interface/run_e2e.py ...
+    from effective_config import resolve_effective_config
+
 SCHEMA_VERSION = 2
 KERNEL_JOURNEY_SCHEMA_VERSION = 1
 
@@ -238,9 +244,77 @@ def _fold_serving_fidelity_flags(
 # ---------------------------------------------------------------------------
 # handoff (stable)  ->  e2e_workflow.js args (volatile, owned here)
 # ---------------------------------------------------------------------------
+def _as_float(v, default: float = 0.0) -> float:
+    """Coerce a JSON-ish value to a float, defaulting rather than raising.
+
+    Used on gate arithmetic over agent-authored JSON, where a number can arrive as a string or as
+    null. Defaulting to 0.0 makes a malformed value fail a `> 1.0` gate, which is the safe direction:
+    an unreadable speedup is not evidence of a win.
+    """
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_bool(v) -> bool:
+    """Coerce a handoff value to a bool.
+
+    Callers hand us real JSON booleans, the strings "true"/"false"/"1"/"0"/"yes"/"no", or numbers.
+    The workflow args are string-typed ("true"/"false"), so normalise here rather than at each site;
+    an unrecognised value is truthy-tested, which keeps a default-ON knob ON rather than silently
+    disabling a phase on a typo.
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        s = v.strip().lower()
+        if s in ("false", "0", "no", "off", ""):
+            return False
+        if s in ("true", "1", "yes", "on"):
+            return True
+    return bool(v)
+
+
 def map_args(h: dict, timeout_s: int | None = None) -> dict:
     workload = h.get("workload") or {}
     tp = int(h.get("tp", 1) or 1)
+    effective = None
+    if int(h.get("schema_version", 1) or 1) >= 2 and isinstance(
+        h.get("baseline_env_spec"), dict
+    ):
+        # Schema-v2 is authoritative: launch_recipe < complete resolved
+        # server_launch_flags < reconciled current-best delta.  The resolver
+        # canonicalises flag spellings so a key appears once and refuses
+        # contradictory extra_server_args vs accepted_flags/env.
+        effective = resolve_effective_config(h)
+    initial_server_args = (
+        effective.final_server_args
+        if effective is not None
+        else (h.get("accepted_flags", "") or "")
+    )
+    initial_env = (
+        " ".join(
+            shlex.quote(f"{key}={value}")
+            for key, value in effective.final_env.items()
+        )
+        if effective is not None
+        else (h.get("accepted_env", "") or "")
+    )
+    initial_overlay = ""
+    if effective is not None:
+        # Prefer a materialized aggregate overlay.  When Hyperloom only emitted
+        # source snapshots, later accepted snapshots precede earlier ones so
+        # Python resolves the newest current-best source first.
+        overlay_parts = [effective.base_overlay_pythonpath]
+        overlay_parts.extend(
+            str(snapshot.get("snapshot_dir") or "")
+            for snapshot in reversed(effective.source_snapshots)
+            if isinstance(snapshot, dict) and snapshot.get("reproducible")
+        )
+        initial_overlay = ":".join(
+            dict.fromkeys(part for part in overlay_parts if part)
+        )
     # gpu_ids is the optimization-parallelism pool AND the serving device set.
     # Default to 0..tp-1 so serving honours the requested tensor-parallel size.
     gpu_ids = h.get("gpu_ids") or ",".join(str(i) for i in range(max(tp, 1)))
@@ -255,8 +329,17 @@ def map_args(h: dict, timeout_s: int | None = None) -> dict:
         "conc": int(workload.get("conc", 64)),
         # Seed the baseline with Hyperloom's accepted best config so the
         # baseline == Hyperloom best config (fair engagement start).
-        "initial_extra_server_args": h.get("accepted_flags", "") or "",
-        "initial_extra_env": h.get("accepted_env", "") or "",
+        "initial_extra_server_args": initial_server_args,
+        "initial_extra_env": initial_env,
+        "initial_overlay_pythonpath": initial_overlay,
+        # One fresh replica matches Hyperloom's compute-warm/cache-cold
+        # lifecycle: the client keeps internal kernel/graph warmups but skips
+        # the outer full-round replay. Three independent servers are reserved
+        # for final validation; the shell dispatcher owns retries/degradation.
+        "measurement_mode": "isolated_server",
+        "parity_replicas": 1,
+        "search_replicas": 1,
+        "validation_replicas": 3,
         # Hyperloom already did config/param search in EXPLORE; do not double-run.
         "config_tune": "false",
         # Produce the final/ bundle (final_launch.sh + overlay) so the caller can
@@ -264,6 +347,8 @@ def map_args(h: dict, timeout_s: int | None = None) -> dict:
         "apply_to_original": "true",
         "exp_root": h["exp_root"],
     }
+    if effective is not None:
+        ps_args["effective_config_digest"] = effective.digest
     # Forward the orchestrator's HARD wall-clock budget (the same timeout_s this
     # runner enforces via anyio.fail_after / subprocess timeout) so the JS
     # workflow can self-pace and FINISH (Finalize/Report/Validate + workflow_return
@@ -274,8 +359,9 @@ def map_args(h: dict, timeout_s: int | None = None) -> dict:
     # budget-unaware (byte-identical to a direct, non-interface invocation).
     if timeout_s is not None and timeout_s > 0:
         ps_args["time_budget_s"] = int(timeout_s)
-    # Final-phase reserve. Default lives in the JS (50min, capped at 20% of the budget);
+    # Final-phase reserve. Default lives in the JS (60min, capped at 20% of the budget);
     # this lets an operator widen it per run -- e.g. GEAK_FINAL_RESERVE_S=5400 for 90min.
+    # Optional: unset means the JS default, so no caller (Hyperloom included) has to set it.
     final_reserve_s = _int_or_none(os.environ.get("GEAK_FINAL_RESERVE_S"), "GEAK_FINAL_RESERVE_S")
     if final_reserve_s is not None:
         ps_args["final_reserve_s"] = final_reserve_s
@@ -315,13 +401,27 @@ def map_args(h: dict, timeout_s: int | None = None) -> dict:
     # Finalize gate against a pinned eval_dir, which (with the disk-reconstruct +
     # finish-all-pending logic) drives every incomplete A/B on disk to a complete
     # ref+cand measurement WITHOUT re-running Setup/Profile/Kernel. General: any
-    # subset of {setup,profile,config,head,kernel,final} (default unset => "all").
+    # subset of {setup,profile,config,tune,head,kernel,final} (default unset => "all").
     if h.get("phases"):
         ps_args["phases"] = str(h["phases"])
-    # Optional A/B repeat count override (bounds the cost of a resume / finalize
-    # A/B — e.g. 1 repeat per leg is enough to PROVE both legs ran). General.
+    # Legacy A/B repeat override. Isolated-server handoffs use the purpose-specific
+    # replica counts above; retain this pass-through for explicitly legacy runs.
     if h.get("e2e_repeats") is not None:
         ps_args["e2e_repeats"] = int(h["e2e_repeats"])
+    # Standalone tuning-skillset phase (workflow default ON). This is NOT the
+    # config_tune sweep disabled above: Hyperloom's EXPLORE searched server
+    # flags/env, whereas this phase runs the vendored tuning skillset's own loop
+    # (per-op tuners -> tuned artifacts -> engagement proof), which upstream did
+    # not do. So it stays enabled by default and is only overridden on request.
+    # Omitted keys => the workflow's own defaults, byte-identical to a direct call.
+    if h.get("tuning_skillset") is not None:
+        ps_args["tuning_skillset"] = "true" if _as_bool(h["tuning_skillset"]) else "false"
+    # tuning-kb is the skillset's per-model ANSWER KEY: right for production, but it
+    # must be off for a blind evaluation or the agent can look the result up instead
+    # of deriving it.
+    if h.get("tuning_kb") is not None:
+        ps_args["tuning_kb"] = "true" if _as_bool(h["tuning_kb"]) else "false"
+    # No op budget is forwarded: the tuning loop is uncapped by design (see e2e_workflow.js).
     # Carried cross-phase state (the prior workflow return's `state`), so a
     # resume continues from where a previous phase invocation left off.
     if h.get("state"):
@@ -1088,6 +1188,17 @@ def apply_bench_launcher(h: dict) -> str:
     else:
         launcher = "native"
     os.environ["BENCH_LAUNCHER"] = launcher
+    if int(h.get("schema_version", 1) or 1) >= 2 and isinstance(
+        h.get("baseline_env_spec"), dict
+    ):
+        # initial_extra_server_args was resolved from the COMPLETE server argv,
+        # including the recipe layer.  Tell the Magpie adapter not to prepend
+        # its recipe EXTRA_<BACKEND>_ARGS a second time. This remains true when
+        # server_launch_flags is empty: the resolver still folded recipe args
+        # into the canonical result.
+        os.environ["EFFECTIVE_SERVER_ARGS_COMPLETE"] = "1"
+    else:
+        os.environ.pop("EFFECTIVE_SERVER_ARGS_COMPLETE", None)
 
     # Magpie's script defaults max-model-len to a value of its own (4096) that
     # has nothing to do with this run, and the orchestrator overrode it via env
@@ -1296,12 +1407,13 @@ _BENCH_PROTOCOL_ENV = {
 def apply_bench_protocol(h: dict) -> dict:
     """Export the caller's measurement protocol so workflow bench_e2e.sh inherits it.
 
-    ``handoff.bench_protocol`` carries the EXACT bench knobs the external
-    orchestrator (Hyperloom) measured with — chiefly ``random_range_ratio``
-    (fixed vs variable sequence lengths), ``num_prompts``, ``num_warmups`` and
-    ``seed``. We export each PROVIDED key into the environment (same mechanism
-    as :func:`apply_bench_client`), so every ``bench_e2e.sh`` invocation the
-    agents make overrides its built-in default with the orchestrator's value.
+    ``handoff.bench_protocol`` carries the recorded bench knobs — chiefly
+    ``random_range_ratio`` (fixed vs variable sequence lengths),
+    ``num_prompts``, ``num_warmups`` and ``seed``. We export each provided key.
+    For schema-v2 Hyperloom handoffs, the actual wrapper lifecycle is
+    authoritative over stale metadata: fixed seed/range and 2*CONC client
+    warmups run inside the single measured invocation, while the separate
+    outer full-round replay is skipped.
 
     IMPORTANT: only keys actually present in the handoff are exported. When
     ``bench_protocol`` is absent (e.g. GEAK run standalone, no external
@@ -1322,6 +1434,45 @@ def apply_bench_protocol(h: dict) -> dict:
             continue
         os.environ[env_var] = str(val)
         exported[env_var] = str(val)
+    if int(h.get("schema_version", 1) or 1) >= 2 and isinstance(
+        h.get("baseline_env_spec"), dict
+    ):
+        # Cache-cold parity uses one measured client invocation on a fresh
+        # server. InferenceX still receives 2*concurrency internal warmups,
+        # which repeat prompt[0] to warm kernels/graphs without pre-populating
+        # the remaining timed prompts in the prefix cache.
+        # Some historical handoffs recorded an older small NUM_WARMUPS value;
+        # keep the observed 2*concurrency client behavior while changing only
+        # whether the separate outer full replay runs.
+        workload = h.get("workload") or {}
+        conc = max(1, int(workload.get("conc", 1) or 1))
+        aligned = {
+            "NUM_WARMUPS": str(2 * conc),
+            "SEED": "0",
+            "RANDOM_RANGE_RATIO": "1",
+            "GEAK_REPEAT_MODE": "isolated_server",
+            "REPLICA_RETRIES": "1",
+        }
+        # NUM_PROMPTS was the one protocol knob this block did not align, and
+        # the two sides disagree by default: bench_e2e.sh falls back to Magpie's
+        # fixed CONC*10, while the caller's own materializer scales the count
+        # DOWN as the per-request sequence cost grows
+        # ({<=1024:10, <=4096:5, <=16384:3, else 2} * CONC -- Hyperloom
+        # ``_workload_envs.py``). At ISL+OSL=2048 that is 5*CONC there against
+        # 10*CONC here: a different saturation regime, so a different tok/s,
+        # measured under a header claiming the protocols match.
+        #
+        # bench_e2e.sh already implements that exact table (same thresholds,
+        # same max(CONC*factor, CONC) clamp) behind NUM_PROMPTS_ADAPTIVE, so
+        # aligning means switching it on rather than restating the arithmetic
+        # in a second place that can drift. Only when the handoff did NOT pin a
+        # count: an explicit num_prompts is the caller telling us what it
+        # measured, and it still wins.
+        if not str(protocol.get("num_prompts") or "").strip():
+            aligned["NUM_PROMPTS_ADAPTIVE"] = "1"
+        for env_var, value in aligned.items():
+            os.environ[env_var] = value
+            exported[env_var] = value
     return exported
 
 
@@ -2055,27 +2206,42 @@ def _cold_penalty_pct(cold: Any, hot: Any) -> float | None:
 
 
 def _overlay_has_loadable_code(path: Path) -> bool:
-    """True when ``path`` is an overlay a consumer could actually PYTHONPATH into.
+    """True when ``path`` is an overlay that actually installs something.
 
-    The Finalize phase creates ``final/overlay`` unconditionally and drops a
-    marker file (``README.txt``, ``EMPTY_NO_ACCEPTED_OVERLAY.txt``) into it when
-    nothing was accepted, so directory existence proves nothing. What makes an
-    overlay real is importable code: a top-level module, the manifest the
-    overlay loader reads, or an accepted ``cand_*`` subtree.
+    Finalize creates ``final/overlay`` unconditionally and drops a marker file
+    into it when nothing was accepted, so directory existence proves nothing.
+    The test is the mechanism's own contract: the overlay is activated by its
+    ROOT on ``PYTHONPATH``, and the only thing the interpreter runs from there
+    is ``<overlay>/sitecustomize.py`` (``e2e_workflow/scripts/overlay_setup.py``
+    — only the FIRST sitecustomize on the path is imported, so two overlay dirs
+    do not compound). So:
+
+      * no ``sitecustomize.py`` at the ROOT -> inert, whatever else is inside.
+        Neither a loose ``.py`` module nor a loadable ``cand_*`` SUBTREE counts:
+        the consumer is handed this path, not the child.
+      * a manifest that parses and names nothing -> the config-only overlay,
+        which imports cleanly and installs zero kernels, so advertising it books
+        a pure config win as a kernel win.
+      * a manifest that does not parse -> we cannot claim it installs anything.
+
+    Deliberately the same predicate the consumer applies (Hyperloom's
+    ``_geak_overlay_is_loadable``): declaring an overlay it will refuse to load
+    costs a revalidation, and an empty string tells it the truth.
     """
-    if not path.is_dir():
+    if not path.is_dir() or not (path / "sitecustomize.py").is_file():
         return False
-    if (path / "_overlay_manifest.json").is_file() or (path / "sitecustomize.py").is_file():
+    manifest = path / "_overlay_manifest.json"
+    if not manifest.is_file():
+        # No manifest is the pre-manifest overlay shape: absence of evidence is
+        # not evidence of an empty overlay, and the sitecustomize still runs.
         return True
-    if any(p.suffix == ".py" for p in path.iterdir() if p.is_file()):
-        return True
-    return any(
-        d.is_dir() and (
-            (d / "_overlay_manifest.json").is_file()
-            or (d / "sitecustomize.py").is_file()
-        )
-        for d in path.glob("cand_*")
-    )
+    try:
+        spec = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(spec, dict):
+        return False
+    return bool(spec.get("modules") or spec.get("rebinds") or spec.get("captures"))
 
 
 def _patch_has_hunks(path: Path) -> bool:
@@ -2093,6 +2259,81 @@ def _patch_has_hunks(path: Path) -> bool:
     except OSError:
         return False
     return any(line.startswith("@@") for line in text.splitlines())
+
+
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Shell control characters. A value carrying one of these is not a value: it is
+# a fragment of the launch script that leaked into the assignment string.
+_ENV_VALUE_SHELL_CHARS = ";&|<>()`"
+
+
+def _parse_env_assignments(env: str) -> tuple[dict, list]:
+    """Split an ``A=1 B=2`` string into ``({k: v}, [unparsable fragments])``.
+
+    ``accepted_config.env`` is a shell string assembled from launch-script
+    lines, so syntax travels with it and a consumer's naive ``s.split()`` +
+    ``split("=")`` turns ``)``, ``true;`` and ``sglang;`` into environment
+    variables — which is exactly how ``EXTRA_ENV=").", RUN_EVAL="true;",
+    BACKEND="sglang;"`` reached a downstream rebench.
+
+    So GEAK does the split once and publishes the result: a key must be a real
+    identifier, a value must be free of shell control characters, and a trailing
+    ``;`` (a statement separator the line-joining left behind) is stripped first.
+    Anything that still fails goes to the reject list rather than being dropped,
+    so a consumer can see the string was lossy instead of trusting a map that
+    quietly lost a variable.
+    """
+    ok: dict[str, str] = {}
+    rejected: list[str] = []
+    text = str(env or "").strip()
+    if not text:
+        return ok, rejected
+    try:
+        tokens = shlex.split(text)
+    except ValueError:
+        tokens = text.split()
+
+    def _pair(piece: str) -> tuple[str, str] | None:
+        key, sep, value = piece.partition("=")
+        if (
+            sep
+            and _ENV_KEY_RE.match(key)
+            and not any(c in value for c in _ENV_VALUE_SHELL_CHARS)
+        ):
+            return key, value
+        return None
+
+    for token in tokens:
+        if not token.strip():
+            continue
+        # One token can hold several assignments joined by ``;`` — a
+        # launch-script line that never got re-split. Take the whole token only
+        # if EVERY piece of it is a well-formed assignment, so a half-parsed
+        # fragment is quarantined whole instead of contributing half a truth.
+        pieces = [p for p in token.split(";") if p.strip()]
+        pairs = [_pair(p) for p in pieces]
+        if pairs and all(p is not None for p in pairs):
+            ok.update(dict(pairs))  # type: ignore[arg-type]
+        else:
+            rejected.append(token)
+    return ok, rejected
+
+
+def _accepted_config_with_env_map(config: dict) -> dict:
+    """``accepted_config`` plus a structured, validated ``env_map``.
+
+    ``env`` is kept verbatim (it is what the run actually exported, and older
+    consumers read it), but ``env_map`` is the form a consumer should use:
+    already split, already validated. ``env_unparsed`` is present only when
+    something was dropped, which is the signal that the shell string is
+    malformed at the source.
+    """
+    out = dict(config)
+    env_map, rejected = _parse_env_assignments(out.get("env"))
+    out["env_map"] = env_map
+    if rejected:
+        out["env_unparsed"] = rejected
+    return out
 
 
 def _material_overlay_path(eval_dir: Path, wf: dict) -> str:
@@ -2219,10 +2460,12 @@ def normalize_result(h: dict, wf: dict) -> dict:
     speedup = float(wf.get("throughput_speedup") or validation.get("throughput_speedup") or 1.0)
     status = "ok" if speedup > 1.0 else "no_gain"
 
+    # Same rule as report_path: never advertise a path that does not exist.
+    _launch_default = eval_dir / "final" / "final_launch.sh"
     final_launch = (
         wf.get("final_launch_script")
         or validation.get("final_launch_script")
-        or str(eval_dir / "final" / "final_launch.sh")
+        or (str(_launch_default) if _launch_default.is_file() else "")
     )
     workload = h.get("workload") or {"isl": 1024, "osl": 1024, "conc": 64}
 
@@ -2562,7 +2805,7 @@ def normalize_result(h: dict, wf: dict) -> dict:
         "recovery": wf.get("recovery_evidence") or None,
     }
 
-    return {
+    result = {
         "schema_version": SCHEMA_VERSION,
         "status": status,
         "result_source": result_source,
@@ -2614,7 +2857,7 @@ def normalize_result(h: dict, wf: dict) -> dict:
         # What the kernel phase actually did (req: report must carry this).
         "accepted_kernels": wf.get("accepted_kernels") or [],
         "accepted_heads": wf.get("accepted_heads") or [],
-        "accepted_config": wf.get("accepted_config") or {},
+        "accepted_config": _accepted_config_with_env_map(wf.get("accepted_config") or {}),
         # Self-describing baseline measurement-protocol + Hyperloom cross-check (see baseline_basis above).
         "baseline_basis": baseline_basis,
         # Reliability classification is independent of the optimization status.
@@ -2629,8 +2872,138 @@ def normalize_result(h: dict, wf: dict) -> dict:
         # Cold/hot speedup cross-checks (double-check only; see alignment_metrics above).
         # Does NOT change the promoted final_throughput_tok_s / throughput_speedup.
         "alignment_metrics": alignment_metrics,
-        "report_path": wf.get("report_path") or str(eval_dir / "final_report.md"),
+        # Never advertise a report that is not on disk: the old unconditional
+        # fallback handed the caller a path to a file that was never written.
+        # _emit fills this in with the synthesized report if the workflow died first.
+        "report_path": wf.get("report_path") or _existing_report_path(eval_dir),
     }
+    # ADDITIVE ONLY. Appended after the dict above is complete so it is self-evident at review time that
+    # no existing key is touched, and omitted entirely when the phase did not run.
+    tuning_section = _tuning_skillset_section(wf, eval_dir)
+    if tuning_section is not None:
+        result["tuning_skillset"] = tuning_section
+    return result
+
+
+def _tuning_skillset_section(wf: dict, eval_dir: Path) -> dict | None:
+    """Build the ADDITIVE ``tuning_skillset`` block for result.json.
+
+    Contract: this is the ONLY thing the tuning phase adds to result.json. Every pre-existing key keeps
+    its name, type and meaning — downstream consumers that do not know about tuning are unaffected, and
+    a run without the phase produces a byte-identical result.json (we return None and the key is omitted).
+
+    The tuning gain is ALREADY inside the headline ``final_throughput_tok_s`` / ``throughput_speedup``:
+    the phase runs mid-pipeline and its accepted config is inherited by every later measurement. This
+    block does not restate the headline, it ATTRIBUTES part of it — which is the question the headline
+    cannot answer on its own.
+
+    ``reaches_production_via`` is the load-bearing field. The tuning win is usually a data artifact
+    (a config table read from inside a library's package dir, plus a cache that must be dropped), which
+    cannot travel in the PYTHONPATH overlay. Finalize folds it into the same ``final_patch`` /
+    ``final_launch_script`` the caller already uses, so no new deployment path is introduced — but a
+    caller that reproduces the bundle by hand needs to know the deploy step exists.
+    """
+    t = wf.get("tuning_skillset")
+    if not isinstance(t, dict) or not t.get("enabled"):
+        return None
+    if not t.get("ran"):
+        # Enabled but never executed (e.g. a phase-scoped invocation that skipped it). Record that
+        # plainly rather than implying a measured no-win.
+        return {
+            "phase": "TuningSkillset",
+            "ran": False,
+            "gate": t.get("gate") or "not_run",
+            "explanation": "The standalone tuning-skillset phase was enabled but did not run in this invocation.",
+        }
+
+    gate = t.get("gate") or "unknown"
+    accepted = gate == "accepted"
+    delta = t.get("tuning_delta_pct") or 0.0
+    share = t.get("share_of_total_gain_pct")
+
+    if accepted:
+        explanation = (
+            f"The standalone tuning-skillset phase ran before the head-kernel track and measured its own "
+            f"interleaved pre/post A/B on the serving config accepted at that point: "
+            f"{t.get('pre_tune_throughput_tok_s')} -> {t.get('post_tune_throughput_tok_s')} tok/s "
+            f"({delta:+.2f}%). Engagement was verified, so the tuned artifacts were folded into the "
+            f"accepted config and every later phase was measured on top of them. This delta is part of "
+            f"the headline throughput_speedup, not additional to it"
+            + (f"; it accounts for ~{share}% of the run's total gain." if share is not None
+               else " (the run had no net gain to apportion).")
+        )
+    else:
+        explanation = (
+            f"The standalone tuning-skillset phase ran before the head-kernel track and did not bank a "
+            f"win (gate={gate}). Nothing from it was folded into the accepted config, so the headline "
+            f"result is unaffected by it. Reason: {t.get('reason') or t.get('summary') or 'not stated'}."
+        )
+
+    section: dict[str, Any] = {
+        "phase": "TuningSkillset",
+        "ran": True,
+        "gate": gate,
+        "explanation": explanation,
+        "mode": t.get("mode") or "",
+        "skills_used": t.get("skills_used") or [],
+        "ops_tuned": t.get("ops_tuned") or [],
+        # Attribution — measured by the phase itself, NOT re-derived from the run baseline.
+        "pre_tune_throughput_tok_s": t.get("pre_tune_throughput_tok_s"),
+        "post_tune_throughput_tok_s": t.get("post_tune_throughput_tok_s"),
+        "tuning_delta_pct": t.get("tuning_delta_pct"),
+        "tuning_speedup": t.get("tuning_speedup"),
+        "share_of_total_gain_pct": share,
+        "noise_floor_pct": t.get("noise_floor_pct"),
+        "ab_interleaved": t.get("ab_interleaved"),
+        "ab_complete": t.get("ab_complete"),
+        "correctness_gate": t.get("correctness_gate"),
+        "engagement_verified": t.get("engagement_verified"),
+        "engagement_evidence": t.get("engagement_evidence") or "",
+        "report_path": t.get("report_path") or str(eval_dir / "tuning" / "tuning_report.md"),
+    }
+
+    if accepted:
+        section["artifacts"] = t.get("artifacts") or []
+        section["apply_env"] = t.get("apply_env") or ""
+        section["apply_flags"] = t.get("apply_flags") or ""
+        section["cache_invalidation"] = t.get("cache_invalidation") or []
+        # Data paths the deploy owns inside an installed package tree. Surfaced because a consumer
+        # diffing the image against a pristine one would otherwise read these as contamination.
+        section["live_tree_files"] = t.get("live_tree_files") or []
+        # Non-empty when tuning also needed a code change to make the artifact bind (a routing switch).
+        # It is merged into the run's accepted overlay, so it ships via the existing final_overlay key.
+        section["apply_overlay"] = t.get("apply_overlay") or ""
+        section["deploy_bundle"] = t.get("deploy_bundle") or str(eval_dir / "tuning" / "deploy")
+        section["in_final_bundle"] = t.get("in_final_bundle")
+        section["final_bundle_engagement_recheck"] = t.get("final_bundle_engagement_recheck") or ""
+        section["reaches_production_via"] = {
+            "note": (
+                "Tuned artifacts are DATA (config tables a library reads from its own package dir, plus "
+                "caches that must be invalidated), so they do not travel in final_overlay, which is a "
+                "PYTHONPATH overlay for code. They ship through the SAME two handles as everything else: "
+                "the tuning diff is concatenated into final_patch, and final_launch_script runs the "
+                "bundle's idempotent deploy.sh before starting the server. Reusing final_launch_script "
+                "needs no extra steps; applying final_patch by hand also requires the cache_invalidation "
+                "commands. When apply_overlay is non-empty the tuning ALSO needed a code change to make "
+                "the artifact bind; that half is merged into final_overlay and needs both to be applied."
+            ),
+            "final_patch_includes_tuning": t.get("in_final_bundle"),
+            "final_launch_runs_deploy": t.get("in_final_bundle"),
+            "deploy_script": (
+                str(Path(t["deploy_bundle"]) / "deploy.sh") if t.get("deploy_bundle")
+                else str(eval_dir / "final" / "tuning" / "deploy.sh")
+            ),
+        }
+    return section
+
+
+def _existing_report_path(eval_dir: Path) -> str:
+    """Absolute path of the run's final report, or "" when none exists yet."""
+    try:
+        candidate = eval_dir / FINAL_REPORT_FILE
+        return str(candidate) if candidate.is_file() else ""
+    except OSError:
+        return ""
 
 
 def _format_optional_number(
@@ -2816,6 +3189,237 @@ def _update_baseline_alignment_reports(result: dict[str, Any]) -> list[str]:
 # ---------------------------------------------------------------------------
 WORKFLOW_RETURN_FILE = "workflow_return.json"
 KERNEL_JOURNEY_FILE = "kernel_journey.json"
+FINAL_REPORT_FILE = "final_report.md"
+
+# ---------------------------------------------------------------------------
+# KB write-back, salvage path
+#
+# The workflow has its own KB writer (Module B, at the very end of
+# e2e_workflow.js). It only runs if the workflow process gets that far, and
+# for a stretch of runs on 20260821-22 it mostly did not: 6 of 9 measured runs
+# ended in runner_error, _recover_workflow_return rebuilt a complete result
+# from the artifacts on disk, result.json was written with a real speedup —
+# and nothing was recorded. The next run on that deployment cold-started
+# against a win that had already been measured on the same box.
+#
+# So the recovery path gets a writer too. Not a second policy: the DECISION of
+# whether a result may be recorded lives once, in e2e_store.win_gate, and both
+# writers ask for it with --require-win. The address comes from the file the
+# warm-start read left behind (KB_IDENTITY_FILE), so the two writers cannot
+# land on different pages.
+#
+# What this path knows that Module B does not is that its numbers may be
+# provisional: a recovered_* result has no final Validate behind it, only the
+# best accepted intermediate A/B. Such a record is still worth having — a
+# reader sees every session on the page — but it must not become the champion
+# on arithmetic alone (publish() compares scores and never consults
+# `validated`), so it is written with --no-promote and marked unverified.
+# ---------------------------------------------------------------------------
+KB_IDENTITY_FILE = "kb_identity.json"   # spelled in e2e_workflow.js as KB_IDENTITY_BASENAME
+KB_WRITE_FILE = "kb_write.json"         # Module B's receipt; its presence means "already written"
+E2E_STORE_SCRIPT = E2E_DIR / "scripts" / "e2e_store.py"
+KB_ENV_SCRIPT = E2E_DIR / "scripts" / "kb_env.sh"
+# The salvage write runs on the way out, sometimes inside a SIGTERM flush that the outer runner is
+# already counting down on. A KB call that hangs must not cost us the interface files, so it is
+# bounded — and it runs AFTER result.json is on disk, never before.
+KB_WRITE_TIMEOUT_S = int(os.environ.get("GEAK_E2E_KB_WRITE_TIMEOUT_S", "120") or 120)
+
+
+def _kb_direction(wf: dict, ps_args: dict) -> str:
+    """What this run DID, in e2e_workflow.js's vocabulary (see its kbDirection).
+
+    Same three fragments, same order, same join — the string is a shortlist key on the KB page, so
+    a second spelling of it would split one deployment's history into two. `fast`/`deep` never
+    appear here: those are workflow modes, and this path is not the workflow.
+    """
+    accepted = wf.get("accepted_config") or {}
+    changed_config = (
+        str(accepted.get("flags") or "") != str(ps_args.get("initial_extra_server_args") or "")
+        or str(accepted.get("env") or "") != str(ps_args.get("initial_extra_env") or "")
+    )
+    changed_kernels = bool(wf.get("accepted_kernels") or wf.get("accepted_heads"))
+    return "+".join([f for f in ("config" if changed_config else "",
+                                 "kernels" if changed_kernels else "") if f])
+
+
+def _kb_write_back(eval_dir: Path, wf: dict, ps_args: dict) -> dict:
+    """Record this run in the KB when the workflow died before doing it itself.
+
+    Returns a small dict for result.json — always, never raises: a KB failure is a missed record,
+    not a failed run, and the interface files are already on disk by the time we get here.
+    """
+    if str(os.environ.get("GEAK_E2E_KB_WRITE_BACK", "1")).strip().lower() in ("0", "false", "no"):
+        return {"skipped": True, "why": "GEAK_E2E_KB_WRITE_BACK is off"}
+    if (eval_dir / KB_WRITE_FILE).exists():
+        return {"skipped": True, "why": "workflow already wrote (kb_write.json present)"}
+    identity = _read_json(eval_dir / KB_IDENTITY_FILE)
+    dims = (identity or {}).get("dims") or {}
+    # No gfx, no address: kb/identity folds it to `unknown` and the record lands on a page no
+    # reader of this deployment will ever look at. Better to record nothing than to record it there.
+    if not dims.get("model") or not dims.get("gfx"):
+        return {"skipped": True,
+                "why": "no %s (warm start never ran, or ran before this build)" % KB_IDENTITY_FILE}
+    if not (eval_dir / WORKFLOW_RETURN_FILE).exists():
+        return {"skipped": True, "why": "no %s to write" % WORKFLOW_RETURN_FILE}
+
+    flags: list[str] = []
+    for key, value in dims.items():
+        if value not in (None, ""):
+            flags += ["--" + key, str(value)]
+    plane = str((identity or {}).get("plane") or "remote")
+    store = str((identity or {}).get("store") or "")
+    if plane in ("local", "both") and store:
+        flags += ["--store", store]
+    elif plane in ("local", "both"):
+        plane = "remote"   # a store-less local plane cannot be opened; the service still can
+    flags += ["--plane", plane]
+
+    # Provisional until proven otherwise. `recovered_from_disk` means the numbers came from the
+    # artifacts rather than from a Validate leg that finished, so the record says so (unverified)
+    # and declines to move the champion pointer.
+    provisional = bool(wf.get("recovered_from_disk")) or \
+        str(wf.get("validation_status") or "").startswith("recovered")
+    if provisional:
+        flags += ["--validated", "false", "--validation-basis", "unverified", "--no-promote"]
+
+    cmd = [sys.executable, str(E2E_STORE_SCRIPT), "write", *flags,
+           "--result", str(eval_dir / WORKFLOW_RETURN_FILE),
+           "--direction", _kb_direction(wf, ps_args),
+           "--measured-by", "run_e2e:salvage",
+           "--require-win", "--apply"]
+    # Sourced, not reimplemented: the token path and CA fallback list live in kb_env.sh, which
+    # e2e_workflow.js sources too. `exec` so the timeout below kills python, not just the shell.
+    shell = '. %s; exec "$@"' % shlex.quote(str(KB_ENV_SCRIPT))
+    try:
+        proc = subprocess.run(["bash", "-c", shell, "bash", *cmd],
+                              capture_output=True, text=True, timeout=KB_WRITE_TIMEOUT_S,
+                              cwd=str(GEAK_ROOT))
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "why": "timed out after %ds" % KB_WRITE_TIMEOUT_S}
+    except Exception as exc:
+        return {"ok": False, "why": "%s: %s" % (type(exc).__name__, str(exc)[:160])}
+
+    try:
+        receipt = json.loads(proc.stdout)
+    except Exception:
+        return {"ok": False, "rc": proc.returncode,
+                "why": (proc.stderr or proc.stdout or "no output from e2e_store write")[-400:]}
+    receipt.setdefault("ok", proc.returncode == 0)
+    receipt["measured_by"] = "run_e2e:salvage"
+    receipt["provisional"] = provisional
+    try:   # same receipt filename the workflow writes, so one reader finds either
+        (eval_dir / KB_WRITE_FILE).write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+    return receipt
+
+
+TUNING_RESULT_FILE = "tuning/tuning_result.json"   # the role's return, persisted before it returns
+TUNING_KB_WRITE_FILE = "tuning/kb_write_tuned.json"  # the orchestrator's receipt; presence == already filed
+KERNEL_STORE_SCRIPT = GEAK_ROOT / "kernel_workflow" / "scripts" / "experience_store.py"
+
+
+def _kb_write_tuned_ops(eval_dir: Path) -> dict:
+    """File the tuning phase's proven tables when the workflow died before doing it itself.
+
+    The orchestrator's own write-back (e2e_workflow.js, the `kernel-kb:write-tuned` step) runs after
+    the tuning role returns. Under an outer runner that slices wall-clock — which is the normal case,
+    not the exceptional one — a run can finish its A/B, prove engagement, and still be killed with the
+    verdict only in the role's context. The measurement is complete and on disk; only the filing is
+    missing. So the role persists its return to ``tuning/tuning_result.json`` and this reads it.
+
+    Deliberately independent of the run's e2e outcome, exactly as the orchestrator's write is: a
+    per-op tuned table is knowledge about that op, and a run whose end-to-end number went the wrong
+    way for unrelated reasons has not unlearned it.
+
+    Same gates as the orchestrator, per op: ``isolated_speedup > 1.0`` and ``engaged``, plus a phase
+    gate of ``accepted``. Never raises — a missed record is not a failed run.
+    """
+    if str(os.environ.get("GEAK_E2E_KB_WRITE_BACK", "1")).strip().lower() in ("0", "false", "no"):
+        return {"skipped": True, "why": "GEAK_E2E_KB_WRITE_BACK is off"}
+    # The orchestrator got there first. Writing again would not overwrite — the store has no delete —
+    # it would mint a second record with the same content signature, which the page counts as an
+    # independent REPRODUCTION and which can promote a candidate on one measurement seen twice.
+    if (eval_dir / TUNING_KB_WRITE_FILE).exists():
+        return {"skipped": True, "why": "workflow already filed (%s present)" % TUNING_KB_WRITE_FILE}
+    tuning = _read_json(eval_dir / TUNING_RESULT_FILE)
+    if not tuning:
+        return {"skipped": True, "why": "no %s (tuning never ran, or ran before this build)"
+                                        % TUNING_RESULT_FILE}
+    if str(tuning.get("gate") or "") != "accepted":
+        return {"skipped": True, "why": "tuning gate is %r, not accepted" % (tuning.get("gate") or "")}
+
+    dims = (_read_json(eval_dir / KB_IDENTITY_FILE) or {}).get("dims") or {}
+    gfx = str(dims.get("gfx") or "")
+    if not gfx:
+        return {"skipped": True, "why": "no gfx: a tuned table is valid for exactly one arch"}
+
+    ops = [o for o in (tuning.get("ops_tuned") or [])
+           if isinstance(o, dict) and o.get("engaged") is True
+           and _as_float(o.get("isolated_speedup")) > 1.0 and str(o.get("artifact") or "").strip()]
+    if not ops:
+        return {"skipped": True, "why": "no op cleared isolated_speedup>1.0 AND engaged"}
+
+    identity = _read_json(eval_dir / KB_IDENTITY_FILE) or {}
+    plane = str(identity.get("plane") or "remote")
+    store = str(identity.get("store") or "")
+    verb = "write-remote" if (plane != "local" and store) else "write"
+    plane_flags = ["--plane", "both", "--store", store] if verb == "write-remote" else []
+
+    rows = []
+    for op in ops:
+        name = str(op.get("op") or op.get("short_name") or "").strip()
+        if not name:
+            rows.append({"written": False, "reason": "unnamed op"})
+            continue
+        cmd = [sys.executable, str(KERNEL_STORE_SCRIPT), verb, *plane_flags,
+               "--root", str(GEAK_ROOT / "kb_artifacts"),
+               "--kernel-name", name,
+               "--language", str(op.get("backend") or "tuned").strip(),
+               "--gfx", gfx, "--kernel-class", "tuning",
+               "--speedup", str(_as_float(op.get("isolated_speedup"))),
+               "--carrier", "tuned_artifact", "--artifact", str(op.get("artifact")).strip(),
+               "--tuner", str(op.get("tuner") or "").strip(),
+               "--apply-env", str(tuning.get("apply_env") or ""),
+               "--cache-invalidation", " && ".join(tuning.get("cache_invalidation") or []),
+               "--metric-kind", "tuning_isolated",
+               "--case-names", str(op.get("shapes") or "").replace(",", ";"),
+               "--direction", "tuning-" + re.sub(
+                   r"[^a-z0-9]+", "-", str(op.get("backend") or "op").strip().lower()),
+               "--eval-dir", str(eval_dir)]
+        # Recorded into `value.upstream`, never part of the key — same as the orchestrator's write,
+        # and it has to stay the same or a salvaged op would be indistinguishable from an unlabelled
+        # backlog entry and would outrank correctly-labelled ones on a mismatched-dtype read. Sourced
+        # from the identity file the warm start already wrote, so this needs no new plumbing.
+        # `dims` is the raw argv of the e2e read, so its keys are the FLAG spellings — hyphenated,
+        # not underscored. Reading `framework_version` here would silently find nothing.
+        for flag, value in (("--precision", dims.get("precision")),
+                            ("--serving-framework", dims.get("framework")),
+                            ("--serving-framework-version", dims.get("framework-version"))):
+            if str(value or "").strip():
+                cmd += [flag, str(value).strip()]
+        if str(tuning.get("report_path") or "").strip():
+            cmd += ["--report", str(tuning["report_path"]).strip()]
+        shell = '. %s; exec "$@"' % shlex.quote(str(KB_ENV_SCRIPT))
+        try:
+            proc = subprocess.run(["bash", "-c", shell, "bash", *cmd], capture_output=True,
+                                  text=True, timeout=KB_WRITE_TIMEOUT_S, cwd=str(GEAK_ROOT))
+            rows.append(json.loads(proc.stdout))
+        except subprocess.TimeoutExpired:
+            rows.append({"written": False, "reason": "timed out after %ds" % KB_WRITE_TIMEOUT_S})
+        except Exception as exc:
+            rows.append({"written": False, "reason": "%s: %s" % (type(exc).__name__, str(exc)[:160])})
+
+    receipt = {"ok": True, "measured_by": "run_e2e:salvage", "plane": plane, "verb": verb,
+               "ops": len(ops), "written": sum(1 for r in rows if r.get("written")),
+               "results": rows}
+    try:
+        path = eval_dir / TUNING_KB_WRITE_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+    return receipt
 
 
 def _git_short_sha(root: Path) -> str:
@@ -2913,6 +3517,12 @@ def _recover_workflow_return(exp_root: Path) -> dict | None:
         win = _recover_best_intermediate_win(eval_dir)
         if win is not None:
             return win
+        #   1b. no accepted kernel, but the sweep adopted a winning serving config
+        #       (warm-start recall / ck_tune) — recover it as the final floor so a
+        #       validated config gain is not flattened to the default baseline.
+        cfg_win = _recover_accepted_config_win(eval_dir)
+        if cfg_win is not None:
+            return cfg_win
         return _recover_completed_no_gain(eval_dir)
     serving = validation.get("serving_config") or {}
     accepted_config = {
@@ -3147,6 +3757,119 @@ def _integrate_candidates(eval_dir: Path) -> list[dict]:
     return records
 
 
+def _recover_accepted_serving_config(eval_dir: Path) -> dict | None:
+    """Recover the SERVING CONFIG the sweep accepted, from ``config/sweep_results.json``.
+
+    The config sweep (warm-start KB recall + ck_tune) writes its winning serving
+    config here — ``accepted_flags`` / ``accepted_env`` / ``best_throughput_tok_s``
+    measured against ``baseline.throughput_tok_s_median`` — and an adopted config
+    stays live in CURRENT_FLAGS/CURRENT_ENV for the rest of the run (the whole
+    pipeline compounds ON TOP of it). Neither :func:`_recover_best_intermediate_win`
+    (reads ``overlay/<cand>/integrate_result.json``) nor
+    :func:`_recover_completed_no_gain` (reads ``baseline/`` only) looks here, so a
+    run that crashed after adopting a config used to be recovered as if the config
+    never happened — the default baseline was reported and a validated recall gain
+    (e.g. a +65% warm-start config) was silently discarded.
+
+    Returns ``None`` when there is no sweep file, no measured numbers, or the
+    accepted config does not actually differ from / beat the baseline (beyond the
+    sweep's own noise band). Otherwise a compact dict the recovery tiers fold in.
+    """
+    sweep = _read_json(eval_dir / "config" / "sweep_results.json")
+    if not sweep:
+        return None
+    base = sweep.get("baseline") or {}
+    try:
+        best_tput = float(sweep.get("best_throughput_tok_s"))
+    except (TypeError, ValueError):
+        return None
+    if best_tput <= 0.0:
+        return None
+    try:
+        sweep_speedup = float(sweep.get("throughput_speedup_vs_baseline"))
+    except (TypeError, ValueError):
+        sweep_speedup = 0.0
+    # The sweep's own baseline median is the denominator when present, but several
+    # runs record it as null in this block (only best + speedup survive). Derive it
+    # from the sweep's own speedup, then fall back to the run's measured default
+    # baseline — otherwise a real config win (mixtral +6.97%, qwen27b +17.56%) is
+    # missed just because this one field was null.
+    baseline_tput = 0.0
+    for v in (base.get("throughput_tok_s_median"),
+              base.get("output_throughput_tok_s_median")):
+        try:
+            baseline_tput = float(v)
+        except (TypeError, ValueError):
+            continue
+        if baseline_tput > 0.0:
+            break
+    if baseline_tput <= 0.0 and sweep_speedup > 1.0:
+        baseline_tput = best_tput / sweep_speedup
+    if baseline_tput <= 0.0:
+        official = _read_json(eval_dir / "baseline" / "baseline_official.json")
+        summary = _read_json(eval_dir / "baseline" / "bench_summary.json")
+        for v in (official.get("baseline_throughput_tok_s"),
+                  official.get("plateau_median_tok_s"),
+                  summary.get("output_throughput_tok_s_median"),
+                  summary.get("throughput_tok_s_median")):
+            try:
+                baseline_tput = float(v)
+            except (TypeError, ValueError):
+                continue
+            if baseline_tput > 0.0:
+                break
+    if baseline_tput <= 0.0:
+        return None
+    flags = str(sweep.get("accepted_flags") or "").strip()
+    env = str(sweep.get("accepted_env") or "").strip()
+    base_flags = str(base.get("flags") or "").strip()
+    base_env = str(base.get("env") or "").strip()
+    # A sweep that kept nothing writes the baseline config back as "accepted" — that
+    # is a genuine no-gain, not a config win. Require a real config change AND a real
+    # gain past the sweep's own acceptance band before crediting it.
+    changed = (flags and flags != base_flags) or (env and env != base_env)
+    band = float(sweep.get("noise_band_pct") or 0.5)
+    if not changed or best_tput <= baseline_tput * (1.0 + band / 100.0):
+        return None
+    speedup = sweep_speedup if sweep_speedup > 1.0 else best_tput / baseline_tput
+    return {
+        "flags": flags, "env": env, "baseline_tput": baseline_tput,
+        "best_tput": best_tput, "speedup": speedup, "band_pct": band,
+    }
+
+
+def _recover_accepted_config_win(eval_dir: Path) -> dict | None:
+    """Config-only recovery tier: the sweep adopted a winning serving config but no
+    kernel/head integrate A/B was accepted before the crash.
+
+    Sits between :func:`_recover_best_intermediate_win` (a kernel win, which folds
+    the config in itself) and :func:`_recover_completed_no_gain` (nothing accepted
+    at all). Reports the adopted config as the final floor — the served path really
+    was running it when the run died — so the validated recall/sweep gain survives a
+    mid-run crash instead of being flattened to the default baseline.
+    """
+    cfg = _recover_accepted_serving_config(eval_dir)
+    if cfg is None:
+        return None
+    return {
+        "eval_dir": str(eval_dir),
+        "throughput_speedup": cfg["speedup"],
+        "baseline_throughput_tok_s": cfg["baseline_tput"],
+        "final_throughput_tok_s": cfg["best_tput"],
+        "output_parity": "n/a",
+        "validation_status": "recovered_intermediate",
+        # Config-only win: applied through env/flags, so there is no overlay bundle.
+        "final_overlay": "",
+        "final_launch_script": "",
+        "accepted_config": {"flags": cfg["flags"], "env": cfg["env"]},
+        "accepted_kernels": [],
+        "accepted_heads": [],
+        "recovered_from_disk": True,
+        "recovered_intermediate": True,
+        "recovered_config_only": True,
+    }
+
+
 def _recover_best_intermediate_win(eval_dir: Path) -> dict | None:
     """Salvage the best accepted intermediate win when the run died BEFORE Validate.
 
@@ -3251,11 +3974,40 @@ def _recover_best_intermediate_win(eval_dir: Path) -> dict | None:
         ):
             if value and value not in sink:
                 sink.append(value)
+    # Fold in the sweep-adopted serving config (config/sweep_results.json). It was
+    # live on the server this kernel A/B ran against, so (a) its flags/env belong in
+    # accepted_config for a reproducible relaunch, and (b) when the kernel's own
+    # reference leg was measured ON that config (ref_med at/above the config-applied
+    # throughput), the honest speedup DENOMINATOR is the DEFAULT baseline, not the
+    # config-applied ref — otherwise the config's own gain is dropped from the
+    # headline and the stack (config ⊕ kernel) is under-credited (the DeepSeek /
+    # gpt-oss recovered_intermediate case). Re-base only when the ref leg is truly at
+    # the config-applied level, so a kernel A/B run against the raw baseline is never
+    # double-counted.
+    baseline_out, speedup_out, config_restacked = ref_med, speedup, False
+    cfg = _recover_accepted_serving_config(eval_dir)
+    if cfg is not None:
+        for value, sink in ((cfg["flags"], flags), (cfg["env"], env)):
+            if value and value not in sink:
+                sink.append(value)
+        # The kernel A/B ran on the config-applied server when its reference leg
+        # sits on the config-applied SIDE of the gap between the default baseline
+        # and the config-applied throughput. The midpoint test is robust to ~1%
+        # measurement drift (the DeepSeek case: ref leg 1481.9 vs config-applied
+        # 1497) while still refusing to re-base a kernel A/B that ran against the
+        # RAW baseline (which lands near cfg baseline, far below the midpoint) —
+        # re-basing that would double-count the config gain.
+        midpoint = (cfg["baseline_tput"] + cfg["best_tput"]) / 2.0
+        if ref_med >= midpoint and cfg["baseline_tput"] < ref_med:
+            baseline_out = cfg["baseline_tput"]
+            speedup_out = final_tput / cfg["baseline_tput"]
+            config_restacked = True
     return {
         "eval_dir": str(eval_dir),
-        "throughput_speedup": speedup,
-        "baseline_throughput_tok_s": ref_med,
+        "throughput_speedup": speedup_out,
+        "baseline_throughput_tok_s": baseline_out,
         "final_throughput_tok_s": final_tput,
+        "config_restacked_over_default": config_restacked or None,
         "output_parity": ir.get("output_parity"),
         "validation_status": "recovered_intermediate",
         # Latency from the candidate (accepted) A/B leg when the integrator recorded
@@ -3314,6 +4066,11 @@ def _recover_completed_no_gain(eval_dir: Path) -> dict | None:
     construction (do-no-harm); speedup 1.0 -> :func:`normalize_result` => no_gain.
     Returns ``None`` only when no baseline throughput was ever measured (the run
     genuinely produced nothing to keep).
+
+    This is the LAST recovery tier: :func:`_recover_workflow_return` reaches it only
+    after ruling out an accepted kernel win AND an adopted serving config
+    (:func:`_recover_accepted_config_win`), so "nothing accepted" is really true
+    here — the default baseline is the correct floor.
     """
     official = _read_json(eval_dir / "baseline" / "baseline_official.json")
     summary = _read_json(eval_dir / "baseline" / "bench_summary.json")
@@ -3909,6 +4666,123 @@ def _write_kernel_journey(eval_dir: Path, wf: dict | None, normalized: dict) -> 
     return str(path)
 
 
+def _md_table(rows: list[tuple[str, Any]]) -> str:
+    """Two-column markdown table; ``None``/"" render as an explicit em dash."""
+    out = ["| item | value |", "|---|---|"]
+    for key, value in rows:
+        text = "—" if value is None or value == "" else str(value)
+        out.append(f"| {key} | {text} |")
+    return "\n".join(out)
+
+
+def _render_synthesized_final_report(normalized: dict, wf: dict | None) -> str:
+    """Render a final report from the normalized result + on-disk recovery.
+
+    Deliberately not an LLM call: this runs on the timeout path where the only
+    budget left is the flush grace, so it must never hang. A dump of recovered
+    numbers, not an analysis — the banner says so.
+    """
+    status = str(normalized.get("status") or "unknown")
+    speedup = normalized.get("throughput_speedup")
+    kernels = normalized.get("accepted_kernels") or []
+    heads = normalized.get("accepted_heads") or []
+    config = normalized.get("accepted_config") or {}
+    evidence = normalized.get("validation_evidence") or {}
+    pending = (wf or {}).get("pending_integrations") or []
+
+    parts: list[str] = []
+    parts.append("# GEAK e2e — final report (SYNTHESIZED)\n")
+    parts.append(
+        "> **This report was not written by the Report phase.** The workflow did not reach\n"
+        "> Finalize/Report/Validate before its wall-clock budget expired, so `run_e2e.py`\n"
+        "> synthesized this file from the artifacts already on disk. Every number below was\n"
+        "> really measured, but there was **no independent Director re-measurement**, so treat\n"
+        "> the headline as provisional and re-bench before promoting it.\n"
+    )
+    parts.append("\n## Result\n")
+    parts.append(_md_table([
+        ("status", status),
+        ("result_source", normalized.get("result_source")),
+        ("baseline tok/s", normalized.get("baseline_throughput_tok_s")),
+        ("final tok/s", normalized.get("final_throughput_tok_s")),
+        ("speedup", f"{speedup:.4f}x" if isinstance(speedup, (int, float)) else None),
+        ("output parity", normalized.get("output_parity")),
+        ("TTFT ms", normalized.get("ttft_ms")),
+        ("TPOT ms", normalized.get("tpot_ms")),
+        ("validation_status", evidence.get("validation_status")),
+        ("speedup basis", evidence.get("speedup_basis")),
+        ("bench client", normalized.get("bench_client")),
+        ("eval_dir", normalized.get("eval_dir")),
+    ]))
+
+    parts.append("\n\n## Accepted work\n")
+    if not kernels and not heads:
+        parts.append("\nNothing was accepted — the run is a do-no-harm no-gain.\n")
+    for label, entries in (("kernels", kernels), ("heads", heads)):
+        if not entries:
+            continue
+        parts.append(f"\n### Accepted {label}\n\n")
+        parts.append(_md_table([
+            (str(e.get("short_name") or "?"),
+             f"{e.get('e2e_delta_pct')}% e2e, backend={e.get('backend') or '?'}, gate={e.get('gate') or '?'}")
+            for e in entries if isinstance(e, dict)
+        ]))
+        parts.append("\n")
+    if config.get("flags") or config.get("env"):
+        parts.append("\n### Accepted config\n\n")
+        parts.append(f"- flags: `{config.get('flags') or ''}`\n")
+        parts.append(f"- env: `{config.get('env') or ''}`\n")
+        if config.get("env_unparsed"):
+            # Not cosmetic: whatever is listed here is NOT in env_map, so a
+            # consumer replaying this config will not set it. Naming it is the
+            # difference between a lossy replay and an unexplained one.
+            parts.append(
+                "- env fragments that are not assignments (dropped from "
+                f"`env_map`): `{' '.join(config['env_unparsed'])}`\n"
+            )
+
+    if pending:
+        parts.append("\n## Deferred (verified-isolated, e2e A/B never completed)\n\n")
+        parts.append(
+            "These are REAL isolated wins whose end-to-end A/B ran out of time. They are not\n"
+            "rejections — resume the run against the same eval_dir to finish them.\n\n"
+        )
+        for entry in pending:
+            if isinstance(entry, dict):
+                parts.append(
+                    f"- `{entry.get('short_name') or '?'}` — "
+                    f"{entry.get('isolated') or '?'}x isolated, "
+                    f"{entry.get('pct_gpu_time') or '?'}% GPU time\n"
+                )
+
+    parts.append("\n## Artifacts\n\n")
+    parts.append(f"- `{KERNEL_JOURNEY_FILE}` — per-kernel journey\n")
+    parts.append(f"- `{WORKFLOW_RETURN_FILE}` — recovered workflow return\n")
+    parts.append("- `result.json` — the full normalized result this report was rendered from\n")
+    if normalized.get("final_overlay"):
+        parts.append(f"- `{normalized['final_overlay']}` — final overlay\n")
+    return "".join(parts)
+
+
+def _write_final_report_fallback(eval_dir: Path, normalized: dict,
+                                 wf: dict | None) -> str:
+    """Guarantee a readable final report; return its path ("" on failure).
+
+    Same guaranteed-emit contract as ``result.json`` / ``kernel_journey.json``.
+    When the Report phase already wrote one this is a no-op returning the
+    existing path — the architect's report is never overwritten.
+    """
+    existing = _existing_report_path(eval_dir)
+    if existing:
+        return existing
+    path = eval_dir / FINAL_REPORT_FILE
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(_render_synthesized_final_report(normalized, wf), encoding="utf-8")
+    os.replace(tmp, path)  # atomic: a kill mid-write never yields a partial file
+    return str(path)
+
+
 def _publish_protected_pgids() -> str:
     """Tell the benchmark teardown which process groups it must NEVER signal.
 
@@ -4015,6 +4889,12 @@ def main(argv: list[str]) -> int:
         return 2
 
     ps_args = map_args(h, timeout_s)
+    if ps_args.get("effective_config_digest"):
+        os.environ["EFFECTIVE_CONFIG_DIGEST"] = str(
+            ps_args["effective_config_digest"]
+        )
+    else:
+        os.environ.pop("EFFECTIVE_CONFIG_DIGEST", None)
     # Pin the single eval_dir into the environment so BOTH the live completion
     # check (_workflow_done_on_disk) and the scrape-independent disk recovery
     # (_discover_eval_dir) target EXACTLY this run's dir, deterministically.
@@ -4106,6 +4986,17 @@ def main(argv: list[str]) -> int:
                 out["kernel_journey_path"] = _write_kernel_journey(eval_dir, wf, out)
             except Exception as kj_exc:
                 out["kernel_journey_error"] = f"{type(kj_exc).__name__}: {kj_exc}"
+            # A final report is a guaranteed interface file too. Must run before
+            # _update_baseline_alignment_reports so the alignment section is
+            # appended to a synthesized report as well.
+            try:
+                had_report = bool(_existing_report_path(eval_dir))
+                report_path = _write_final_report_fallback(eval_dir, out, wf)
+                if report_path:
+                    out["report_path"] = report_path
+                    out["final_report_synthesized"] = not had_report
+            except Exception as fr_exc:
+                out["final_report_error"] = f"{type(fr_exc).__name__}: {fr_exc}"
         if out.get("baseline_basis"):
             try:
                 updated_reports = _update_baseline_alignment_reports(out)
@@ -4128,6 +5019,42 @@ def main(argv: list[str]) -> int:
                 _emit_state.update(done=True, out=out)
             except Exception:
                 pass
+        # ── KB write-back ────────────────────────────────────────────────────
+        # AFTER result.json is on disk and _emit_state is done, deliberately: the
+        # guaranteed-emission contract above outranks the KB, and this call talks to a
+        # network service from what may already be a SIGTERM flush. Recording second
+        # means a KB stall costs the record, never the interface files. Then result.json
+        # is rewritten with the receipt — best-effort, atomic, and if that second write
+        # loses a race the file from the first one is still correct.
+        if _emit_state["done"] and wf is not None and eval_dir_str:
+            try:
+                receipt = _kb_write_back(Path(eval_dir_str), wf, ps_args)
+                if receipt and not receipt.get("skipped"):
+                    out["kb_write"] = receipt
+                    tmp = result_path.with_name(result_path.name + ".tmp")
+                    tmp.write_text(json.dumps(out, indent=2), encoding="utf-8")
+                    os.replace(tmp, result_path)
+                    _emit_state["out"] = out
+            except Exception as kb_exc:
+                out["kb_write"] = {"ok": False,
+                                   "why": f"{type(kb_exc).__name__}: {kb_exc}"}
+        # The per-op tuned tables, filed on the same terms and for the same reason, but on their own
+        # gate: this one is NOT conditional on `wf`. A run can be cut off with a complete, engagement-
+        # proven tuning A/B on disk and no workflow return at all, and that table is still knowledge
+        # about that op. Runs after the deployment record for the same ordering reason — result.json
+        # first, network second.
+        if _emit_state["done"] and eval_dir_str:
+            try:
+                tuned = _kb_write_tuned_ops(Path(eval_dir_str))
+                if tuned and not tuned.get("skipped"):
+                    out["kb_write_tuned"] = tuned
+                    tmp = result_path.with_name(result_path.name + ".tmp")
+                    tmp.write_text(json.dumps(out, indent=2), encoding="utf-8")
+                    os.replace(tmp, result_path)
+                    _emit_state["out"] = out
+            except Exception as kb_exc:
+                out["kb_write_tuned"] = {"ok": False,
+                                         "why": f"{type(kb_exc).__name__}: {kb_exc}"}
         return out
 
     # Safety net: any exit path that somehow skipped _emit still leaves a file.

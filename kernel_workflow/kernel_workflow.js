@@ -76,6 +76,19 @@ const EXPERT_SKILLS_DIR = String(A.expert_skills_dir ||
   (KERNEL_KNOWLEDGE_DIR ? KERNEL_KNOWLEDGE_DIR + '/expert_skills' : '')).replace(/\/+$/, '');
 const EXPERT_SKILL_ROLES = new Set(['op_benchmarker']);
 
+// Warm-start experience KB. Passed to each lane explicitly (the bakeoff lane invocation spreads
+// specific keys, not ...A) so every language lane reads/writes its own <kernel>__<lang>__<gfx> slug.
+const WARM_START = String(A.warm_start != null ? A.warm_start : 'on').trim().toLowerCase() || 'on';
+const KB_ARTIFACTS_DIR = String(A.kb_artifacts_dir ||
+  (WORKFLOW_DIR.replace(/\/[^/]*$/, '') + '/kb_artifacts')).replace(/\/+$/, '');
+// Plane selection, forwarded the same way and for the same reason: every bakeoff lane must read and
+// write the plane the run was launched with, not each its own default.
+const KB_PLANE_ARGS = {
+  ...(A.kb_mode != null ? { kb_mode: String(A.kb_mode) } : {}),
+  ...(A.kb_store_dir != null ? { kb_store_dir: String(A.kb_store_dir) } : {}),
+  ...(A.kb_framework_version != null ? { kb_framework_version: String(A.kb_framework_version) } : {}),
+};
+
 // ---------------------------------------------------------------------------
 // Schema helpers.
 // ---------------------------------------------------------------------------
@@ -178,7 +191,8 @@ async function agentT(p, o) {
 function expertSkillsBlock(role) {
   if (!USE_EXPERT_SKILLS || !EXPERT_SKILL_ROLES.has(role) || !EXPERT_SKILLS_DIR) return '';
   return `\n\n## Expert skills (ADVISORY — opt-in, enabled this run)\n` +
-    `Also query ${EXPERT_SKILLS_DIR}/index.yaml for skills whose \`match\` fits this op and whose ` +
+    `Also query ${EXPERT_SKILLS_DIR}/index.yaml for skills whose \`match\` fits this op, whose \`scope\` ` +
+    `is \`kernel\` (\`tuning\` entries belong to the e2e tuning phase and match every operator), and whose ` +
     `validation_status is \`validated\`, and treat each as a HIGH-PRIOR candidate — advisory only, never ` +
     `overriding your isolated A/B vs the oracle, never reducing a result below the measured baseline.`;
 }
@@ -410,6 +424,11 @@ const results = await Promise.all(lanes.map(l => sem.with(1, async ([gpu]) => {
   try {
     const r = await workflow({ scriptPath: WORKER }, {
       kernel_path: oracle.task_dir, workflow_dir: WORKFLOW_DIR,
+      // This lane runs on an oracle_freezer-frozen task dir, so a GEAK_TIMING_RECEIPT is EXPECTED and
+      // its absence is a real fault. The optimize/author path spreads {...A} and never sets this, so a
+      // pass-through lane (and e2e, which calls this worker directly) correctly defaults to false —
+      // there is no Freeze on those routes, so director must not demand a receipt they cannot produce.
+      frozen_oracle: 'true',
       mode: l.mode, target_language: l.lang,
       op_spec: oracle.op_spec || OP_SPEC, workload_spec_path: oracle.workload_path || WORKLOAD_SPEC_PATH || '',
       budget: BUDGET, gpu_ids: gpu, gpu_mode: GPU_MODE, task: TASK, apply_to_original: 'false',
@@ -423,6 +442,7 @@ const results = await Promise.all(lanes.map(l => sem.with(1, async ([gpu]) => {
       // Curation is central in bake-off mode (see the UpdateExperience step below). In optimize/author
       // mode this dispatcher is a passthrough, so the lane keeps its default `on` and curates itself.
       update_experience: 'off',
+      warm_start: WARM_START, kb_artifacts_dir: KB_ARTIFACTS_DIR, ...KB_PLANE_ARGS,
     });
     const speedup = primSpeedup(r);
     log(`lane ${l.key}:${l.mode} -> ${speedup ? speedup.toFixed(2) + 'x' : 'no result'} (${r ? r.validation_status : 'null'})`);

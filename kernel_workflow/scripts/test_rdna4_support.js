@@ -12,6 +12,18 @@ const gpuLock = fs.readFileSync(path.join(root, 'scripts/gpu_lock.sh'), 'utf8');
 const profiler = fs.readFileSync(path.join(root, 'scripts/profile_kernel.sh'), 'utf8');
 const rdnaDoc = fs.readFileSync(path.join(root, 'knowledge/amd_rdna4.md'), 'utf8');
 const e2e = fs.readFileSync(path.join(root, '..', 'e2e_workflow/e2e_workflow.js'), 'utf8');
+const capabilityIndex = fs.readFileSync(
+  path.join(root, '..', 'perf_knowledge/index/capability_index.yaml'), 'utf8');
+const flydslRdna = fs.readFileSync(
+  path.join(root, '..', 'perf_knowledge/languages/flydsl/rdna4.md'), 'utf8');
+const scaledFlydsl = fs.readFileSync(
+  path.join(root, '..', 'perf_knowledge/operators/scaled_quant_gemm/backends/flydsl.md'), 'utf8');
+const expertIndex = fs.readFileSync(
+  path.join(root, '..', 'perf_knowledge/expert_skills/index.yaml'), 'utf8');
+const rdnaSkill = fs.readFileSync(path.join(
+  root, '..', 'perf_knowledge/expert_skills/skills/flydsl_rdna4_fp8_blockscale_small_m/skill.md'), 'utf8');
+const authorRole = fs.readFileSync(path.join(root, 'roles/author_engineer.md'), 'utf8');
+const techLeadRole = fs.readFileSync(path.join(root, 'roles/tech_lead.md'), 'utf8');
 
 function ok(value, message) {
   if (!value) throw new Error(`FAIL: ${message}`);
@@ -52,6 +64,33 @@ ok(/gfx120\*\).*rocprofv3 rocprof/.test(profiler), 'RDNA4 profiler order starts 
 for (const fact of ['wave32', 'WGP', 'WMMA', 'GDDR6', 'AITER: no-go', 'FlyDSL main']) {
   ok(rdnaDoc.includes(fact), `RDNA4 hardware card covers ${fact}`);
 }
+ok(rdnaDoc.includes('perf_knowledge/languages/flydsl/rdna4.md'),
+   'RDNA4 hardware card routes FlyDSL work to the architecture authoring card');
+
+const scaledFlydslCap = capabilityIndex.match(
+  /- operator: scaled_quant_gemm\n\s+backend: flydsl\n([\s\S]*?)(?=\n  - operator:|$)/);
+ok(scaledFlydslCap, 'scaled-quant FlyDSL capability entry exists');
+for (const unsafeFact of ['gfx1200', 'gfx1201']) {
+  ok(!scaledFlydslCap[1].includes(unsafeFact),
+     `scaled-quant machine metadata avoids unsupported cross-product ${unsafeFact}`);
+}
+ok(!/dtypes: \[[^\n]*\bfp8_e4m3(?:,|\])/.test(scaledFlydslCap[1]),
+   'scaled-quant machine metadata avoids unsupported exact dtype fp8_e4m3');
+for (const fact of [
+  'wave32', '16x16x16', 'v_wmma', '64 KiB', 'FP32 K128', 'broad-prefill',
+  '3c03e97919bedbeb95ea803baed089c3725eabb6', '0.9895x',
+]) {
+  ok(flydslRdna.includes(fact), `FlyDSL RDNA4 card records ${fact}`);
+}
+ok(scaledFlydsl.includes('Architecture split') && scaledFlydsl.includes('does not establish a broad-M'),
+   'scaled-quant card separates RDNA4 capability from performance maturity');
+ok(authorRole.includes('languages/flydsl/rdna4.md') && techLeadRole.includes('languages/flydsl/rdna4.md'),
+   'planning and author roles explicitly load the FlyDSL RDNA4 card');
+ok(expertIndex.includes('id: flydsl_rdna4_fp8_blockscale_small_m') &&
+   expertIndex.includes('validation_status: validated'),
+   'validated small-M RDNA4 FlyDSL expert recipe is indexed');
+ok(rdnaSkill.includes('keeps M1/M2 behind the incumbent') && rdnaSkill.includes('not a broad-M'),
+   'expert recipe preserves measured route boundaries and excludes broad prefill');
 ok(/const archSafeBackends/.test(e2e) && /rdna4LanguageAllowed/.test(e2e),
    'e2e filters extracted backend candidates through the RDNA4 policy');
 ok(/enforceArchBake/.test(e2e) && /b\.tuned_speedup = 0/.test(e2e),

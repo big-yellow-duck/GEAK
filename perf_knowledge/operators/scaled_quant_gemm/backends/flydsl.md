@@ -7,25 +7,56 @@ gens: [gfx942, gfx950]
 dtypes: [fp8_e4m3_fnuz, int8, fp4_e2m1]
 regimes: [prefill, decode]
 status: sota
-updated: 2026-06-09
+updated: 2026-09-07
 sources:
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/kernels/preshuffle_gemm.py
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_tune/flydsl_gemm_a8w8_bpreshuffle_common.py
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/test_flydsl_moe_a4w4.py
   - ROCm/aiter@a6bb4993:aiter/ops/flydsl/gemm_kernels.py
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
+  - https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_fp8_preshuffle_gemm.py
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_f16_gemm.py
 ---
 
 # scaled_quant_gemm × FlyDSL
 
+> **Architecture split:** the established preshuffle/MXFP material below is CDNA/AITER-specific. On
+> gfx1200/gfx1201 use standalone FlyDSL, OCP FP8, wave32 WMMA, and the raw-weight/software-scale path
+> documented in [`../../../languages/flydsl/rdna4.md`](../../../languages/flydsl/rdna4.md). GEAK does
+> not permit AITER on RDNA4.
+
+## RDNA4 capability and maturity
+
+The upstream gfx120x compiler path lowers `16x16x16` FP8/BF8 WMMA with FP32 accumulation as of
+`ROCm/FlyDSL@3c03e979`. An on-box
+R9700 prototype also validated a vLLM-compatible raw-weight block-scale contract for M1--M64:
+contiguous A, arbitrary padded B row stride, FP32 A/B scales per K128, FP32 accumulation, and one BF16
+conversion. It passed random parity, route boundaries, stream, fresh-output, and graph-replay tests.
+
+That does **not** make the CDNA preshuffle kernel an RDNA route, and it does not establish a broad-M
+winner. The broad-prefill GEAK campaign promoted no FlyDSL patch and measured 0.9895x weighted against
+Triton under a timing run that was itself flagged for a missing receipt. The actionable conclusion is:
+
+- decode/small-M has a real register-fed FP8 WMMA starting implementation;
+- broad prefill needs an LDS-tiled, cross-wave operand-reuse pipeline before scheduler micro-tuning;
+- performance claims remain per-shape and require a new paired receipt.
+
+Upstream also ships `rdna_fp8_preshuffle_gemm.py`, but its contract is per-token A scaling,
+per-channel B scaling, and preshuffled B. It is a useful scheduling reference, not a drop-in
+implementation of raw-B arbitrary-FP32 K128 blockscale. Because the generated capability registry
+cannot represent two architecture-specific variants under one backend, this card's machine-readable
+frontmatter remains conservative and CDNA-only; the experimental RDNA route is documented here and
+in the architecture card without advertising an unsafe cross-product.
+
 ## TL;DR
-The **scaled** (dequant-fused) GEMM path is where FlyDSL is SOTA: a separate `preshuffle_gemm` kernel family
+On CDNA, the **scaled** (dequant-fused) GEMM path is where FlyDSL is SOTA: a separate `preshuffle_gemm` kernel family
 consumes quantized A/W (**fp8 / int8 / int4 / fp4**) plus dequant scales and produces bf16/fp16. The dense
 hgemm path explicitly **rejects scales** — scaling lives here. On **CDNA4 (gfx950)** the fp4 path uses the
 block-scaled `mfma_scale_f32_16x16x128_f8f6f4` MXFP MFMA; on gfx942 it runs the fp8/int8 preshuffle kernel.
 This is the family Kimi-K2.5 used for MoE GEMM (vendor: up to +162% throughput).
 
-## SOTA implementation
+## CDNA SOTA implementation
 A8W8 (fp8/int8) and W4 (MXFP4) share one compiler, `compile_preshuffle_gemm_a8`; `compile_preshuffle_gemm_w4`
 just delegates with `in_dtype="fp4"` and is **gfx950-only**. From
 `/sgl-workspace/aiter/aiter/ops/flydsl/kernels/preshuffle_gemm.py` (`ROCm/aiter@a6bb4993`):
@@ -52,6 +83,8 @@ and emits `rocdl.mfma_scale_f32_16x16x128_f8f6f4` with `cbsz/blgp = 4` and `pack
 
 | impl | source | gens/dtypes | measured perf | when best |
 |---|---|---|---|---|
+| Upstream gfx120x FP8 preshuffle GEMM | `kernels/gemm/rdna_fp8_preshuffle_gemm.py`; atom in `ROCm/FlyDSL@3c03e979` | gfx1200/1201 lowering; OCP fp8_e4m3fn, per-token/per-channel scales, preshuffled B | applicable upstream RDNA tests passed on gfx1201 | scheduling/reference route when its layout and scale contract match |
+| gfx120x raw-weight software-scale WMMA | uncommitted on-box RDNA4 prototype; upstream atom | gfx1200/1201; OCP fp8_e4m3fn + arbitrary FP32 K128 scales | M1--M64 parity and HIP comparisons; broad-M Triton win not established | decode/small-M seed; broad-M requires a new LDS reuse implementation |
 | A8W8 preshuffle GEMM | `preshuffle_gemm.py::compile_preshuffle_gemm_a8` | gfx942/950; fp8/int8 → bf16/fp16 | no isolated flydsl number; folded into aiter a8w8 bpreshuffle GEMM tune | per-tensor/row fp8/int8 GEMM with preshuffled W |
 | W4 / MXFP4 block-scaled GEMM | `preshuffle_gemm.py::compile_preshuffle_gemm_w4` (→ a8 with fp4) | **gfx950 only**; fp4 (per_1x32) → bf16/fp16 | Kimi-K2.5 fused-MoE (FlyDSL, vendor): up to **+162% throughput, −69% TPOT, −65% TTFT** (SGLang+AITER, 2025) | MXFP4 MoE / dense low-bit GEMM |
 
@@ -76,6 +109,10 @@ estimated LDS (`preshuffle_gemm_estimated_lds_bytes` vs `max_lds_bytes_for_tune(
 `(128,256,256,lds2,wpe2)`.
 
 ## Numerics / parity
+On gfx120x, arbitrary FP32 K128 scales are applied in software after completing the eight K16 FP8
+WMMAs in each K128 block. Sum scaled blocks in FP32 and cast once. Do not substitute E8M0 scaled-WMMA,
+scale each K16 partial independently, or scale after summing all K blocks.
+
 fp32 accumulate. Scales are applied via the MXFP block-scaled MFMA on gfx950 (block size 32 — the scale
 layout is `(c_mn1, c_k1, 4, 16)` with `scale_block_size=32`, see [[operators/layout_shuffle/backends/flydsl]]).
 `tile_k_bytes` must be divisible by 64; fp4 requires `tile_k=128` (or `k_unroll≥1` for
@@ -83,6 +120,13 @@ layout is `(c_mn1, c_k1, 4, 16)` with `scale_block_size=32`, see [[operators/lay
 e2e (`test_flydsl_moe_a4w4.py`, `QuantType.per_1x32`, `fp4x2`).
 
 ## Integration (rebind seam)
+**RDNA4**: use direct `flydsl` imports, current PyTorch stream, cached JIT modules, and one operator
+dispatch. Raw B may have padded row stride but K must be contiguous. Do not preshuffle or persist model
+weights unless the operator contract explicitly owns that transformation. Compile the exact gfx120x
+source in a subprocess, then prove the FP8 WMMA in ISA.
+
+**CDNA**: the two AITER seams are described below. They are not RDNA4 options.
+
 Two seams: (1) the a8w8 bpreshuffle GEMM tune (`gemm_tune/flydsl_gemm_a8w8_bpreshuffle_common.py` →
 `kernelInstance.name` = `flydsl_bpreshuflle_<m>x<n>x<k>_<qa>_<qw>_<dt>_<lds>x<csh>x<async>x<wpe>_default`)
 selecting a `solidx`; (2) `flydsl_preshuffle_gemm_a8(XQ,WQ,x_scale,w_scale,Out,...)` exported from
@@ -90,6 +134,12 @@ selecting a `solidx`; (2) `flydsl_preshuffle_gemm_a8(XQ,WQ,x_scale,w_scale,Out,.
 compiler"`; on absence falls back to CK/CKTile). `is_flydsl_available()` gates all of it.
 
 ## Pitfalls & anti-patterns
+- **Do not send gfx120x through the AITER preshuffle path.** Its formats, integration seam, architecture
+  tables, and MFMA schedule are CDNA-specific.
+- **A working FP8 atom is not a broad-M kernel.** At prefill M, add LDS reuse and a measured pipeline;
+  the register-fed small-M route leaves the main Triton advantage intact.
+- gfx120x uses OCP `float8_e4m3fn`, wave32 WMMA, and a 64 KiB portable LDS cap. FNUZ/MFMA/gfx950
+  assumptions are correctness or launch failures, not tuning choices.
 - **fp4/MXFP4 is gfx950-only** — `compile_preshuffle_gemm_w4` raises on gfx942; fp8-A + MXFP4 is
   `NotImplementedError` (op_sel_a overflow).
 - `tile_k_bytes % 64 != 0` raises; fp4 with `tile_k != 128` and `k_unroll < 2` raises.
@@ -98,6 +148,11 @@ compiler"`; on absence falls back to CK/CKTile). `is_flydsl_available()` gates a
 
 ## How to verify
 ```bash
+# gfx120x direct path
+FLYDSL_GPU_ARCH=gfx1201 pytest -q tests/kernels/test_rdna4_wmma_atom.py
+# Then run the operator parity/graph suite and inspect ISA for v_wmma.*fp8.
+
+# CDNA AITER path
 python -c "from aiter.jit.utils.chip_info import get_gfx; print(get_gfx())"     # fp4 path needs gfx950
 pytest -q aiter/ops/flydsl/test_flydsl_moe_a4w4.py                              # a4w4 stage1/stage2/e2e
 ```
@@ -113,6 +168,7 @@ pytest -q aiter/ops/flydsl/test_flydsl_moe_a4w4.py                              
 [[languages/flydsl/authoring_optimization]] (structure-first workflow) ·
 [[languages/flydsl/authoring_tile_programming]] (CuTe tile model) ·
 [[languages/flydsl/debugging]] (correctness / NaN / hang triage).
+RDNA4 authors must additionally read [[languages/flydsl/rdna4]].
 
 ## Sources
 - On-box: `/sgl-workspace/aiter/aiter/ops/flydsl/kernels/preshuffle_gemm.py`
@@ -121,3 +177,5 @@ pytest -q aiter/ops/flydsl/test_flydsl_moe_a4w4.py                              
   `kernelInstance`, LDS/wpe pruning), `gemm_kernels.py` (`flydsl_preshuffle_gemm_a8` driver),
   `test_flydsl_moe_a4w4.py` (tolerances) — `ROCm/aiter@a6bb4993`, flydsl 0.1.5.
 - Kimi-K2.5 FlyDSL fused-MoE numbers (vendor): https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
+- RDNA4 capability, source hashes, and positive/negative receipts:
+  [`../../../languages/flydsl/rdna4.md`](../../../languages/flydsl/rdna4.md)

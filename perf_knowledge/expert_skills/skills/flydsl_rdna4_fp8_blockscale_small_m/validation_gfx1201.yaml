@@ -1,0 +1,46 @@
+skill_id: flydsl_rdna4_fp8_blockscale_small_m
+date: '2026-08-27'
+provider: standalone_flydsl
+gpu: Radeon AI PRO R9700 / gfx1201
+physical_cu_count: 64
+wgp_count: 32
+scope: raw-weight FP8 E4M3FN block-scale GEMM, M1--M64, HIP versus FlyDSL isolated kernel
+method: CUDA-graph batched kernel timing after parity and compilation warmup
+calls_per_replay: 50
+replays: 10
+tolerance: {rtol: 0.02, atol: 0.0625}
+math_contract: complete each K128 FP8 dot in FP32, multiply arbitrary FP32 A/B scales, accumulate FP32, cast once to BF16
+source:
+  flydsl_commit: eed78c6dd93fd297765632861587d9c3be82e0fc
+  atom_upstream_commit: 3c03e97919bedbeb95ea803baed089c3725eabb6
+  kernel_sha256: ea5eec5ee3a7d7d5b1bfa1081ef2fa82d25b4f25e139d709942ebfd209bcabd1
+  sync_sha256: 5ceeff9d76d8181ca5279a904dca79c6c5c69a3a55bf4b4e07659e5cb50e3661
+  device_test_sha256: 578fb0411b9f94a36c39713052092c9384a9cbe347b0c7df82f774e78744b4f8
+  benchmark_sha256: 12f384eaa36420840b14b7a7a2bcb1445f704403afc49408ca6e9243ba45c4b3
+parity:
+  pass: true
+  coverage:
+    - all seven coarse route families
+    - odd padded weight row stride
+    - explicit output and stream
+    - fresh output and changed activation
+    - changed-input CUDA graph replay
+measurements:
+  - {shape: [1, 5120, 3072], route: decode_splitk_m1, flydsl_ms: 0.0125, hip_ms: 0.0113, hip_over_flydsl: 0.91, promote: false}
+  - {shape: [2, 5120, 8704], route: decode_splitk_m2, flydsl_ms: 0.0400, hip_ms: 0.0411, hip_over_flydsl: 1.03, promote: false}
+  - {shape: [4, 5120, 3072], route: decode_packed_m4_n64, flydsl_ms: 0.0173, hip_ms: 0.0180, hip_over_flydsl: 1.05, promote: true}
+  - {shape: [4, 17408, 5120], route: packed_m16, flydsl_ms: 0.1590, hip_ms: 0.1695, hip_over_flydsl: 1.07, promote: true}
+  - {shape: [16, 8192, 5120], route: packed_m16, flydsl_ms: 0.0422, hip_ms: 0.0519, hip_over_flydsl: 1.23, promote: true}
+  - {shape: [17, 5120, 3072], route: paired_n_m32, flydsl_ms: 0.0301, hip_ms: 0.0393, hip_over_flydsl: 1.30, promote: true}
+  - {shape: [33, 17408, 5120], route: paired_n_m64, flydsl_ms: 0.2218, hip_ms: 0.2633, hip_over_flydsl: 1.19, promote: true}
+  - {shape: [39, 16384, 8192], route: tiled_m16, flydsl_ms: 0.9669, hip_ms: 2.3893, hip_over_flydsl: 2.47, promote: true}
+  - {shape: [48, 17408, 5120], route: paired_n_m32, flydsl_ms: 0.5131, hip_ms: 0.6928, hip_over_flydsl: 1.35, promote: true}
+  - {shape: [64, 5120, 3072], route: paired_n_m32, flydsl_ms: 0.0596, hip_ms: 0.0764, hip_over_flydsl: 1.28, promote: true}
+do_no_harm:
+  m1_m2_default: retain HIP until a fresh same-session result exceeds 1.05x
+  broad_m: excluded; use an LDS-tiled kernel and a separate validation campaign
+  cdna: excluded
+provenance_limitations:
+  - operator, sync helper, tests, and benchmark were an uncommitted on-box snapshot; hashes freeze the evidence
+  - results compare against native HIP, not the Triton broad-prefill fallback
+  - timings are route checkpoints, not universal thresholds across products or clocks

@@ -62,7 +62,10 @@ Read, as reference, before writing:
   `flydsl` carry all three of overview/patterns/knobs. For **FlyDSL GEMM on CDNA**, an installed AITER
   wrapper may be a measured candidate. For **RDNA4**, AITER is prohibited: start from upstream FlyDSL's
   direct `kernels/gemm/rdna_f16_gemm.py` pattern and gfx120x atoms. The optimize loop then tunes the
-  direct source. FlyDSL itself is JIT and needs no AITER build or dispatch table.
+  direct source. FlyDSL itself is JIT and needs no AITER build or dispatch table. **Always read
+  `languages/flydsl/rdna4.md` for a gfx1200/gfx1201 FlyDSL task**; it carries the atom ABI, regime split,
+  synchronization, FP8 scale contract, known performance boundary, and source receipts that the
+  CDNA-authored generic guides do not.
   For **gluon** the dir is facts-only (`overview.md`, `programming_model.md`, `gemm_cookbook.md`); the
   fuller language surface, the TTGIR→Gluon transcription toolchain and pipeline re-injection live in the
   `gluon_authoring` expert skill and are only injected when `use_expert_skills` is on. That skill is

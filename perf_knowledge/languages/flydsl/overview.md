@@ -5,11 +5,13 @@ gens: [gfx942, gfx950, gfx1200, gfx1201]
 dtypes: [bf16, fp16, fp8_e4m3_fnuz, fp8_e4m3, int8, fp4_e2m1, mxfp4]
 regimes: [prefill, decode, both]
 status: competitive
-updated: 2026-06-08
+updated: 2026-09-07
 sources:
   - https://github.com/ROCm/FlyDSL
   - https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
   - https://github.com/ROCm/FlyDSL/blob/main/docs/kernel_authoring_guide.md
+  - https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
+  - https://github.com/ROCm/FlyDSL/blob/main/kernels/gemm/rdna_fp8_preshuffle_gemm.py
   - https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2.5-optimize/README.html
   - https://github.com/ROCm/aiter
   - /sgl-workspace/aiter/aiter/ops/flydsl/gemm_kernels.py
@@ -39,11 +41,21 @@ Upstream main lists Radeon AI PRO R9700 (`gfx1201`) as a verified platform and p
 and `get_warp_size()` rather than hard-coding CDNA behavior. gfx120x uses the new v8-operand WMMA ABI;
 it is not compatible with gfx11 fragment packing and is not gfx1250.
 
+The gfx120x FP8/BF8 atom is upstream as of `ROCm/FlyDSL@3c03e979`. On the local R9700, its device
+suite passed 6/6 and the applicable RDNA GEMM cases passed 26/26 (71 gfx11-only skips). Upstream's FP8
+preshuffle kernel uses per-token/per-channel scales and preshuffled B; it does not replace GEAK's
+raw-B, arbitrary-FP32 K128 blockscale contract.
+
 In GEAK's RDNA4 path, use the standalone `flydsl` package and upstream direct kernels. **Do not import
 `aiter.ops.flydsl`**: AITER is disabled on RDNA4 due to its still-experimental, crash-prone non-FlyDSL
 components. This does not disable FlyDSL. An import/architecture probe alone is not an availability
 test: released wheels may recognize gfx1201 while lagging the Python surface used by main's RDNA GEMM.
 Compile and parity-run that native kernel in a subprocess before admitting the backend.
+
+Support is not the same as maturity. For an evidence-separated capability ledger, gfx120x fragment
+ABI, regime-specific starting structures, synchronization patterns, FP8 block-scale semantics, and
+on-box positive/negative receipts, read [`rdna4.md`](rdna4.md). That card is mandatory for RDNA4
+authoring; the older GEMM guides below were originally written from CDNA/MFMA kernels.
 
 ## Where it fits
 | Use FlyDSL when | Reach elsewhere when |
@@ -87,7 +99,8 @@ gfx942, gfx950, and gfx1201. The older AITER wrapper notes below are CDNA integr
 - LDS budget from `addressable_lds_bytes_for_gfx`: **65536 B (gfx942)**, **163840 B (gfx950)**.
 - ROCDL exposes both FNUZ and OCP MFMA + block-scaled `mfma_scale_f32_16x16x128_f8f6f4` (CDNA4 MXFP).
 
-For gfx120x, use upstream's GFX120X atoms and `kernels/gemm/rdna_f16_gemm.py`: wave32, WMMA, a
+For gfx120x, use upstream's GFX120X atoms and the `rdna_f16_gemm.py` / `rdna_fp8_preshuffle_gemm.py`
+references: wave32, WMMA, a
 64 KiB per-CU LDS model, and gfx12-specific fragment ABI. Do not apply the three CDNA wrapper bullets above.
 
 ## Deep-dive map
@@ -99,9 +112,11 @@ For gfx120x, use upstream's GFX120X atoms and `kernels/gemm/rdna_f16_gemm.py`: w
 - [kernel_families.md](kernel_families.md) — HGEMM / small-M / preshuffle / 2-stage MoE / GDR decode.
 
 **Authoring your own `@flyc.kernel`** (ingested from the FlyDSL authoring skill — reference how-to):
+- [rdna4.md](rdna4.md) — gfx120x wave32/WMMA capability ledger, authoring structures, and receipts.
 - [authoring_tile_programming.md](authoring_tile_programming.md) — write a first correct kernel (CuTe-style tile model, the 4 patterns, MFMA reference).
 - [authoring_optimization.md](authoring_optimization.md) — structure-first optimization workflow (fusion → LDS → MFMA-loop → tuning).
 - [authoring_gemm_levers.md](authoring_gemm_levers.md) — GEMM-specific levers (tiling / LDS staging / swizzle / epilogue).
+- [authoring_attention_levers.md](authoring_attention_levers.md) — fused multi-GEMM attention levers (fusion boundary, MFMA fragment orientation, which output goes on atomics, wave count vs the register cap).
 - [debugging.md](debugging.md) — correctness/stability/hang triage (NaN / zeros / mismatch / compile / hang).
 
 ## Sources
@@ -109,6 +124,7 @@ For gfx120x, use upstream's GFX120X atoms and `kernels/gemm/rdna_f16_gemm.py`: w
 - aiter (engine that hosts FlyDSL): https://github.com/ROCm/aiter
 - Standalone FlyDSL main (gfx1201 verified): https://github.com/ROCm/FlyDSL
 - Architecture guide (gfx120x wave32/WMMA): https://github.com/ROCm/FlyDSL/blob/main/docs/architecture_guide.md
+- Upstream gfx120x FP8/BF8 atom: https://github.com/ROCm/FlyDSL/commit/3c03e97919bedbeb95ea803baed089c3725eabb6
 - FlyDSL HGEMM API & arch gating: ROCm/aiter@/sgl-workspace/aiter:aiter/ops/flydsl/gemm_kernels.py
 - ROCDL intrinsic surface (mfma/sched/buffer_load_lds): flydsl 0.1.5 @ /opt/venv/lib/python3.10/site-packages/flydsl/expr/rocdl/
 - DSL body (mfma/swizzle/sched primitives in a real kernel): ROCm/aiter@/sgl-workspace/aiter:aiter/ops/flydsl/kernels/splitk_hgemm.py
