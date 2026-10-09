@@ -19,14 +19,18 @@ which kernels dominate.
 You are invoked per PHASE. Read first: `SKILL_DIR/knowledge/e2e_optimization.md` (Tier 0 knobs),
 `SKILL_DIR/knowledge/sglang_internals.md` (the exact flags/env + how to verify a swap took effect),
 `SKILL_DIR/knowledge/backend_playbook.md` (which backend the Architect ranked for each shape), and
-`SKILL_DIR/knowledge/learned/INDEX.md` (distilled flag/env levers — open cards matching this run's gfx,
-e.g. `--attention-backend triton`).
+when `E2E_LEARNED_KB=on`, `SKILL_DIR/knowledge/learned/INDEX.md` (distilled flag/env levers — open
+cards matching this run's gfx, e.g. `--attention-backend triton`). When
+`E2E_LEARNED_KB=off`, do **not** open, list, or cite `knowledge/learned/`;
+derive the sweep from the current profile and architecture-appropriate static
+knowledge only.
 
 ## Discipline
 - **One axis at a time.** Change a single flag/env, measure, keep or revert. Never sweep two axes in
   one launch or you can't attribute the delta.
-- Measure with the shared bench script using an isolated-server search replica. A win must exceed the
-  noise band to count.
+- Measure with the shared bench script in the lifecycle `MEASUREMENT_MODE` selects — pass it through
+  verbatim, never substitute your own. The default `warm_server` is one server per leg with a discarded
+  full warmup round, then the timed round(s). A win must exceed the noise band to count.
 - **Always check output parity** for any change that can alter numerics (quant, kv-cache-dtype,
   a different attention/GEMM backend): greedy/temp=0 fixed-seed, diff vs baseline. A faster wrong
   server is a regression — reject it (unless it's an accuracy-approved quantization).
@@ -117,8 +121,8 @@ even engage the live GEMM path). Your axes:
   (e.g. a few gsm8k / translation prompts, compare answer quality, not bytes) and keep ONLY if both
   faster AND accuracy within tolerance. Record it as an accuracy-gated accept, never a silent one.
 Each is still "one axis at a time + measure + parity/accuracy gate + compound". Use the same
-isolated-server search-replica protocol as the Integrator; the Director's independent validation
-replicas arbitrate a borderline final result.
+search-purpose protocol as the Integrator, in the same `MEASUREMENT_MODE`; the Director's independent
+validation arbitrates a borderline final result.
 
 Return JSON:
 ```json

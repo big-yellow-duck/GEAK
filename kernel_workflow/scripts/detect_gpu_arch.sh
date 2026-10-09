@@ -11,33 +11,47 @@
 #   GEAK_GPU_CU_COUNT=64
 #   GEAK_GPU_WGP_COUNT=32
 #
-# The first gfx agent is sufficient on the homogeneous GPU boxes GEAK normally
-# uses. Callers on a heterogeneous box should set GEAK_GPU_GFX explicitly.
+# Device selection follows gpu_lock.sh: an inherited ROCR allocation is kept;
+# otherwise GPU_ID scopes the probe. Explicit gfx/count facts support offline CI.
 
 set -euo pipefail
 
 gfx="${GEAK_GPU_GFX:-}"
 cu_count="${GEAK_GPU_CU_COUNT:-}"
-rocminfo_text=""
 if [ -z "$gfx" ] || [ -z "$cu_count" ]; then
-    rocminfo_text="$(rocminfo 2>/dev/null || true)"
-fi
-if [ -z "$gfx" ]; then
-    gfx="$(printf '%s\n' "$rocminfo_text" | grep -m1 -oE 'gfx[0-9a-f]+' || true)"
-fi
-if [ -z "$cu_count" ] && [ -n "$gfx" ]; then
-    # rocminfo uses physical RDNA CU terminology (R9700 = 64). HIP/PyTorch's
-    # multi_processor_count uses the WGP scheduling count instead (R9700 = 32).
-    cu_count="$(printf '%s\n' "$rocminfo_text" | awk -v gfx="$gfx" '
-      $1 == "Name:" && $2 == gfx { in_agent=1; next }
-      in_agent && $1 == "Compute" && $2 == "Unit:" { print $3; exit }
-    ')"
+    if [ -n "${ROCR_VISIBLE_DEVICES:-}" ] || [ -z "${GPU_ID:-}" ]; then
+        rocminfo_text="$(rocminfo 2>/dev/null || true)"
+    else
+        rocminfo_text="$(ROCR_VISIBLE_DEVICES="$GPU_ID" rocminfo 2>/dev/null || true)"
+    fi
+    # Read top-level GPU agents only; CPU and nested ISA Name fields are not GPUs.
+    facts="$(printf '%s\n' "$rocminfo_text" | awk -v pinned="$gfx" '
+      /^ *Agent +[0-9]+ *$/ { in_gpu=0; next }
+      /^ *Name: *gfx[0-9a-f]+ *$/ {
+        if ($2 != "gfx000" && (pinned == "" || $2 == pinned)) {
+          in_gpu=1; current=$2; seen[current]=1
+        } else in_gpu=0
+        next
+      }
+      in_gpu && $1 == "Compute" && $2 == "Unit:" {
+        if (counts[current] && counts[current] != $3) exit 2
+        counts[current]=$3
+      }
+      END {
+        for (arch in seen) { n++; only=arch }
+        if (n > 1) exit 2
+        if (n == 1) print only, counts[only]
+      }
+    ')" || { echo "ERROR: mixed GPU identities; mask the selected GPU with ROCR_VISIBLE_DEVICES" >&2; exit 1; }
+    read -r detected_gfx detected_cu <<< "$facts"
+    gfx="${gfx:-${detected_gfx:-}}"
+    cu_count="${cu_count:-${detected_cu:-}}"
 fi
 
 case "$gfx" in
     gfx942)         arch_class=cdna3; wave_size=64 ;;
-    gfx950|gfx95*)  arch_class=cdna4; wave_size=64 ;;
-    gfx1200|gfx1201|gfx120*) arch_class=rdna4; wave_size=32 ;;
+    gfx950|gfx95*|gfx125*)  arch_class=cdna4; wave_size=64 ;;
+    gfx1200|gfx1201) arch_class=rdna4; wave_size=32 ;;
     gfx10*|gfx11*)  arch_class=rdna;  wave_size=32 ;;
     gfx9*)          arch_class=cdna_or_gcn; wave_size=64 ;;
     *)              arch_class=unknown; wave_size=0 ;;

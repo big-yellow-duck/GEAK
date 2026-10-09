@@ -30,6 +30,19 @@ def _load():
 rx = _load()
 
 
+@pytest.fixture(autouse=True)
+def _gpu_identity(monkeypatch):
+    monkeypatch.setenv(
+        "GEAK_GPU_IDENTITY_JSON",
+        json.dumps({
+            "gfx": "gfx950",
+            "target": "unknown",
+            "marketing_name": "AMD Instinct MI355X",
+            "physical_cu_count": 256,
+        }),
+    )
+
+
 def _make_eval_dir(tmp_path: Path, *, accepted: bool = True,
                    with_validation: bool = False) -> Path:
     """Build a fake eval_dir with a bench_e2e.sh + an accepted intermediate."""
@@ -403,6 +416,15 @@ def test_recover_workflow_return_no_gain_not_parse_error(tmp_path):
     assert out["final_launch_script"].endswith("final/final_launch.sh")
 
 
+def test_a_run_cut_off_before_finalize_is_not_no_gain(tmp_path):
+    """A run stopped mid-optimization has a measured baseline too; without the
+    Finalize bundle it must surface as an error, not as "finished, found nothing"."""
+    eval_dir = _make_no_gain_eval_dir(tmp_path)
+    (eval_dir / "final" / "final_launch.sh").unlink()
+    assert rx._recover_completed_no_gain(eval_dir) is None
+    assert rx._recover_workflow_return(eval_dir.parent) is None
+
+
 def test_no_baseline_still_errors(tmp_path):
     """No measured baseline at all => genuinely nothing => None (-> error)."""
     eval_dir = tmp_path / "e2e_bare"
@@ -431,6 +453,18 @@ def test_workflow_done_marker_accepts_canonical_return(tmp_path):
     (eval_dir / rx.WORKFLOW_RETURN_FILE).write_text(
         json.dumps({"schema_version": 1, "eval_dir": str(eval_dir)}), encoding="utf-8")
     assert rx._workflow_done_on_disk(str(eval_dir)) is True
+
+
+def test_discover_eval_dir_ignores_a_pin_from_another_root(tmp_path, monkeypatch):
+    """A process-scoped stale pin must not override the caller's explicit root."""
+    exp_root = tmp_path / "requested"
+    expected = exp_root / "e2e_current"
+    expected.mkdir(parents=True)
+    foreign = tmp_path / "other" / "e2e_previous"
+    foreign.mkdir(parents=True)
+    monkeypatch.setenv("GEAK_EVAL_DIR", str(foreign))
+
+    assert rx._discover_eval_dir(exp_root) == expected
 
 
 # ── canonical-artifact contract (the perfect-cooperation handoff) ───────────
@@ -751,7 +785,7 @@ def test_emit_on_success(monkeypatch, tmp_path):
     report = eval_dir / "final_report.md"
     report.write_text("# GEAK final report\n", encoding="utf-8")
 
-    def ok_invoke(prompt, t, ed):
+    def ok_invoke(prompt, t, ed, ps_args=None):
         return {"eval_dir": str(eval_dir), "throughput_speedup": 1.16,
                 "final_throughput_tok_s": 535.352,
                 "baseline_throughput_tok_s": 461.314,
@@ -788,7 +822,7 @@ def test_emit_when_workflow_raises_but_disk_has_intermediate(monkeypatch, tmp_pa
     report = eval_dir / "final_report.md"
     report.write_text("# Recovered GEAK report\n", encoding="utf-8")
 
-    def boom(prompt, t, ed):
+    def boom(prompt, t, ed, ps_args=None):
         raise TimeoutError("budget expired before Validate")
 
     rc, rp = _run_main(
@@ -819,7 +853,7 @@ def test_emit_error_when_nothing_on_disk(monkeypatch, tmp_path):
     eval_dir = tmp_path / "e2e_empty"
     eval_dir.mkdir()
 
-    def boom(prompt, t, ed):
+    def boom(prompt, t, ed, ps_args=None):
         raise RuntimeError("crashed immediately")
 
     rc, rp = _run_main(monkeypatch, tmp_path, eval_dir, invoke=boom)
@@ -879,7 +913,7 @@ def test_emit_timeout_still_writes_journey(monkeypatch, tmp_path):
     eval_dir = tmp_path / "e2e_to"
     eval_dir.mkdir()
 
-    def boom(prompt, t, ed):
+    def boom(prompt, t, ed, ps_args=None):
         raise TimeoutError("signal 15: self-stop to flush interface files")
 
     rc, rp = _run_main(monkeypatch, tmp_path, eval_dir, invoke=boom)
@@ -898,7 +932,7 @@ def test_emit_surfaces_journey_write_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(rx, "_write_kernel_journey",
                         lambda ed, wf, n: (_ for _ in ()).throw(OSError("disk full")))
 
-    def ok_invoke(prompt, t, ed):
+    def ok_invoke(prompt, t, ed, ps_args=None):
         return {"eval_dir": str(eval_dir), "throughput_speedup": 1.16,
                 "final_throughput_tok_s": 535.352,
                 "baseline_throughput_tok_s": 461.314}
@@ -915,7 +949,7 @@ def test_emit_is_atomic_and_parseable(monkeypatch, tmp_path):
     """No .tmp residue; the emitted file always parses as JSON."""
     eval_dir = _make_eval_dir(tmp_path, with_validation=True)
 
-    def ok_invoke(prompt, t, ed):
+    def ok_invoke(prompt, t, ed, ps_args=None):
         return {"eval_dir": str(eval_dir), "throughput_speedup": 1.16,
                 "final_throughput_tok_s": 535.352}
 

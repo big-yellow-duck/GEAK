@@ -8,16 +8,18 @@
   <a href="https://rocm.docs.amd.com/projects/geak/en/latest/"><b>📚 Documentation</b></a>
 </p>
 
-GEAK is an autonomous optimization agent that makes AMD Instinct GPUs run faster, automatically. Built as a
+GEAK is an autonomous optimization agent that makes AMD GPUs run faster, automatically. Built as a
 multi-agent system with an evolving knowledge base, it learns from every optimization run and continuously
 improves its strategies over time. Point it at a single kernel or a live model-serving stack such as vLLM or
 sglang, and GEAK runs the full optimization loop: it finds the bottlenecks, generates and tunes better kernels
 across paths such as Triton, FlyDSL, TileLang, and HIP, and validates the speedup on the real system. What
 normally takes weeks of expert kernel engineering becomes an automated, repeatable, and self-improving process.
 
-GEAK targets AMD CDNA GPUs (gfx942/gfx950), and `kernel_workflow` also supports RDNA4
-gfx1200/gfx1201; the on-box card is auto-detected. Its
-deterministic JS workflows run through either **Codex CLI** (default) or Claude Code:
+GEAK targets AMD Instinct MI GPUs (CDNA, e.g. gfx942 / gfx950; the on-box card is auto-detected), and also runs
+on RDNA3.5 client parts (gfx1151 / Radeon 8060S) and the validated RDNA4 product Radeon AI PRO R9700
+(gfx1201). gfx1201 is an ISA shared by other products; it does not by itself select R9700 images,
+calibrated peaks, or serving policy. This fork retains experimental gfx1200 kernel routing
+without a hardware-validation claim. Deterministic JS Workflows run through Codex CLI or Claude Code. It ships two workflows, each for a different scenario:
 
 | Workflow | Scope | What it optimizes |
 | --- | --- | --- |
@@ -42,10 +44,9 @@ optimize a single kernel.
 
 ### 1. Prerequisites
 
-- An AMD GPU supported by the selected path: **Instinct CDNA gfx942/gfx950**, or **RDNA4
-  gfx1200/gfx1201 for `kernel_workflow`**, with a compatible ROCm build, a profiler (`rocprof-compute` /
-  `rocprofv3` / `rocprof`), and Python 3.8+.
-- For E2E: a running-capable serving backend (`sglang` or `vllm`) and the model weights on disk.
+- An **AMD Instinct MI GPU** (CDNA, e.g. gfx942 / gfx950), an **RDNA3.5 part** (gfx1151), or a **Radeon AI PRO R9700** (validated RDNA4/gfx1201 product), **ROCm 6+**, a profiler (`rocprof-compute` /
+  `rocprofv3` / `rocprof`; RDNA4 PMCs may be sparse — kernel-trace still counts), Python 3.8+.
+- For E2E: a running-capable serving backend (`sglang`, `vllm`, or `atom`; R9700 is vLLM-only) and the model weights on disk.
 
 > **⚠️ Build your kernel environment first.** GEAK does **not** install the toolchains your kernels
 > need (e.g. PyTorch, Triton, FlyDSL, hipBLASLt) — these differ per kernel. Set up and verify the
@@ -101,6 +102,12 @@ printf '%s\n' "{\"child_script\":\"$PWD/interface/fixtures/codex_smoke_child.js\
   node interface/codex_workflow_runner.mjs \
     --script interface/fixtures/codex_smoke_parent.js --args-file /dev/stdin
 ```
+
+Provider keys or explicit `GEAK_AGENT_PROFILE` / `GEAK_MODEL` selections use upstream's configurable
+[runtime](interface/runtime/SETUP.md); the subscription-login compatibility runner remains the local
+Codex default when no provider is configured. RDNA4 lanes retain direct FlyDSL/HIP/Triton, the
+[RDNA4 FlyDSL card](perf_knowledge/languages/flydsl/rdna4.md), and the validated small-M FP8 recipe;
+generic CDNA knowledge and AITER environment tuning stay disabled. R9700 E2E is vLLM-only.
 
 To keep using Claude Code, set `GEAK_AGENT_BACKEND=claude`; the existing Anthropic API, gateway, and interactive
 login paths remain supported.
@@ -178,7 +185,7 @@ optimization). This makes runs reliable and reproducible.
 GEAK/
 ├── e2e_workflow/        # ⭐ End-to-end LLM serving-throughput optimizer (wraps kernel_workflow/)
 │   ├── e2e_workflow.js   # system-layer orchestration (config / head-GEMM / kernel tracks + e2e gate)
-│   ├── roles/  knowledge/  scripts/   # adapters/{sglang,vllm}.sh, op_bench.py, parse_profile.py, …
+│   ├── roles/  knowledge/  scripts/   # adapters/{sglang,vllm,atom}.sh, op_bench.py, parse_profile.py, …
 │   └── README.md / PLAN.md
 ├── kernel_workflow/     # Single-kernel optimizer
 │   ├── kernel_workflow.js       # deterministic JS orchestration
@@ -189,6 +196,55 @@ GEAK/
 ├── examples/            # Example kernel tasks, benchmark comparisons, real e2e runs
 └── exp/                 # Experiment outputs (timestamped per run)
 ```
+
+## Running GEAK on the codex CLI
+
+GEAK also runs on the **codex CLI**, with the same `.js` workflows unmodified.
+
+### 1. Install
+
+```bash
+node -v                            # need Node.js v20+
+npm i -g @openai/codex@0.146.1     # pin 0.146.1 -- 0.147 breaks with gateways
+codex --version                    # expect 0.146.1
+node interface/runtime/engine/selftest.mjs  # optional: runtime checks, needs no GPU and no key
+```
+
+### 2. Configure
+
+One variable is the whole configuration: it **selects codex** *and* **configures its provider**.
+
+```bash
+export OPENAI_API_KEY=sk-...        # -> OpenAI official (api.openai.com)
+# export GEAK_AMDKEY=<32hex>        # -> AMD gateway (llm-api.amd.com/Unified)
+# export OPENAI_BASE_URL=...        # -> any other OpenAI-compatible endpoint; wins over both
+```
+
+### 3. Run
+
+Natural-language launch is **not wired up for codex yet**, so drive it from the command line —
+`run_e2e.py` for a whole model, `run_workflow.mjs` for a single kernel:
+
+```bash
+# e2e (whole-model serving throughput). A JSON says WHAT to optimize -- the same information the
+# natural-language example above carries. Filename is yours -- it is just the first argument.
+cat > run_spec.json <<'JSON'
+{ "schema_version": 2,
+  "model_path": "/models/Qwen3.5-27B-FP8",
+  "framework": "sglang", "tp": 1, "gpu_ids": "0",
+  "workload": { "isl": 1024, "osl": 1024, "conc": 64 },
+  "exp_root": "/abs/work/geak" }
+JSON
+# required: model_path, exp_root (basename MUST be `geak`); rest has defaults -- interface/run_e2e.md
+python interface/run_e2e.py run_spec.json result.json    # auto-routes to the codex runtime
+
+# single kernel:
+node interface/runtime/engine/run_workflow.mjs kernel_workflow/kernel_workflow.js --agent codex \
+  --args '{"kernel_path":"/abs/kernel","workflow_dir":"'"$PWD"'/kernel_workflow","budget":6}'
+```
+
+Going further: [`interface/runtime/SETUP.md`](interface/runtime/SETUP.md),
+[`interface/run_e2e.md`](interface/run_e2e.md).
 
 ## Approaches compared
 

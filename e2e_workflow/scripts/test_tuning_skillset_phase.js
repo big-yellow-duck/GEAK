@@ -198,17 +198,19 @@ console.log('\n## C. additive when off');
 const gate = src.match(/const TUNING_SKILLSET_ENABLED = [\s\S]*?const TUNING_KB_ENABLED = [^\n]*\n/);
 ok(!!gate, 'TUNING_* gating block found');
 if (gate) {
-  const make = new Function('A', 'WORKFLOW_DIR',
+  const make = new Function('A', 'WORKFLOW_DIR', 'RDNA4_ISOLATE',
     gate[0] + '\nreturn { TUNING_SKILLSET_ENABLED, TUNING_SKILLSET_DIR, TUNING_KB_ENABLED };');
-  const off = make({ tuning_skillset: 'false' }, '/repo/e2e_workflow');
+  const off = make({ tuning_skillset: 'false' }, '/repo/e2e_workflow', false);
   ok(off.TUNING_SKILLSET_ENABLED === false, 'tuning_skillset:"false" disables the phase');
-  const on = make({}, '/repo/e2e_workflow');
+  const on = make({}, '/repo/e2e_workflow', false);
   ok(on.TUNING_SKILLSET_ENABLED === true, 'default is ON');
+  ok(make({}, '/repo/e2e_workflow', true).TUNING_SKILLSET_ENABLED === false,
+    'gfx1201 ISA isolation disables the CDNA tuning phase');
   ok(on.TUNING_SKILLSET_DIR === '/repo/perf_knowledge/expert_skills/tuning',
     'skillset dir defaults to the vendored tree beside the workflow dir');
-  ok(make({ tuning_skillset_dir: '/elsewhere/skillset/' }, '/repo/e2e_workflow').TUNING_SKILLSET_DIR === '/elsewhere/skillset',
+  ok(make({ tuning_skillset_dir: '/elsewhere/skillset/' }, '/repo/e2e_workflow', false).TUNING_SKILLSET_DIR === '/elsewhere/skillset',
     'the vendored tree can be overridden (e.g. point at an upstream checkout to re-verify standalone)');
-  ok(on.TUNING_KB_ENABLED === true && make({ tuning_kb: 'false' }, '/wf').TUNING_KB_ENABLED === false,
+  ok(on.TUNING_KB_ENABLED === true && make({ tuning_kb: 'false' }, '/wf', false).TUNING_KB_ENABLED === false,
     'tuning-kb (the answer key) is ON by default and gateable for blind evaluation runs');
 }
 // The tuning loop is uncapped by design: tuning ops are cheap and cumulative, unlike head ops.
@@ -234,8 +236,12 @@ if (role) {
     ok(role.includes(key), `role consumes ${key}`);
   }
   ok(/never edit anything inside it/i.test(role), 'role forbids editing the vendored tree');
-  ok(/engagement/i.test(role) && /isolated-server A\/B/i.test(role),
-    'role carries engagement proof and the isolated-server A/B contract');
+  // The A/B contract is now lifecycle-agnostic: the role must NOT name a lifecycle of its own, it
+  // must pass MEASUREMENT_MODE through. Naming one is how this role used to override the run default.
+  ok(/engagement/i.test(role) && /pre\/post A\/B/i.test(role),
+    'role carries engagement proof and the pre/post A/B contract');
+  ok(/MEASUREMENT_MODE/.test(role) && !/isolated-server A\/B/i.test(role),
+    'role defers the lifecycle to MEASUREMENT_MODE instead of pinning isolated-server');
   // The point of vendoring whole is that the METHOD stays in the skillset. The role must route into it
   // and must not grow into a paraphrase of the loop, which is the failure mode this guards.
   ok(/[Rr]ead them and use them/.test(role),
@@ -342,7 +348,95 @@ ok(/Prior tuning knowledge/.test(role) && /KB_REFERENCE_DIR/.test(role),
 ok(/prove engagement/i.test(role) && /A recall is not an accept/.test(role),
   'a recalled artifact still has to earn its accept on this box');
 
-console.log(failures === 0
-  ? '\nPASS: tuning skillset is vendored whole and runs standalone before HeadKernel.'
-  : `\nFAILED: ${failures} assertion(s).`);
-process.exit(failures === 0 ? 0 : 1);
+// ---------------------------------------------------------------------------
+// H. a degraded worker costs a phase, not the run
+//
+// `safeAgent` returns null BY DESIGN once its retries are exhausted, and the phase has a landing for
+// it: `gate=null/degraded`, a dead_end on the ledger, and the run continues into HeadKernel on the
+// pre-tuning config. That landing is only reachable if everything in between tolerates a null — and
+// the ops list is now read OUTSIDE `if (tuneOk)`, since a verdict on a recalled record is a per-op
+// fact that does not wait on the phase's aggregate bar, so `tuned`'s short-circuit no longer
+// screens it.
+//
+// This section EXECUTES the shipped block rather than matching its text, which is the only way to
+// tell a guard that is present from a guard that works. Deps are injected; nothing here reaches an
+// agent, a store, a GPU or the network.
+// ---------------------------------------------------------------------------
+console.log('\n## H. a null worker result is a supported outcome');
+main();
+
+async function main() {
+  const gStart = src.indexOf("  const tuned = tuning && tuning.gate === 'accepted';");
+  const gEnd = src.indexOf('\n  if (tuneOk) {', gStart);
+  ok(gStart > 0 && gEnd > gStart, 'the gate + attest block was located in e2e_workflow.js');
+  if (gStart > 0 && gEnd > gStart) {
+    const block = src.slice(gStart, gEnd);
+    // Everything the slice closes over, handed in explicitly. `safeAgent` records instead of calling:
+    // what this asserts about the null path is that the block never gets far enough to want one.
+    const run = async (tuningResult, kbDims) => {
+      const logs = [];
+      const calls = [];
+      const deps = {
+        tuning: tuningResult,
+        KB_DIMS: kbDims === undefined ? { gfx: 'gfx950', framework_version: 'sglang-1.2.3' } : kbDims,
+        log: (m) => logs.push(String(m)),
+        shq: (s) => "'" + String(s == null ? '' : s).replace(/'/g, "'\\''") + "'",
+        obj: (props, required) => ({ type: 'object', properties: props, required: required || [] }),
+        safeAgent: async (prompt) => { calls.push(prompt); return { ran: 1, note: '' }; },
+        KERNEL_WF_DIR: '/repo/kernel_workflow',
+        E2E_KB_PLANE: 'both',
+        E2E_KB_STORE_DIR: '/kb/store',
+        KB_ENV_PRELUDE: 'export KB_TOKEN=x',
+        BACKEND: 'sglang',
+      };
+      const fn = new Function('D', `return (async () => {\n` +
+        Object.keys(deps).map((k) => `  const ${k} = D.${k};`).join('\n') + '\n' +
+        block + '\n' +
+        `  return { tuneOk: !!tuneOk, tunedOps, tuningRecalls };\n})();`);
+      const out = await fn(deps);
+      return { ...out, logs, calls };
+    };
+
+    const attempt = (fn) => fn().then((r) => ({ r }), (err) => ({ err }));
+
+    // The reported case: the worker degraded to null after its retries.
+    const nul = await attempt(() => run(null));
+    // Same shape from the other direction — a worker that answered, but named no ops.
+    const empty = await attempt(() => run({ gate: 'no_win', reason: 'nothing found' }));
+    // Positive control. Without one, deleting the whole block would pass this section.
+    const recalled = await attempt(() => run({
+      gate: 'no_win',                     // the phase banked nothing...
+      ops_tuned: [{ op: 'fused_moe', backend: 'aiter', source: 'kb_recall', engaged: true,
+        isolated_speedup: 1.31, session_id: 'sess-abc', read_plane: 'local' }],
+    }));
+
+    ok(!nul.err, 'a null worker result does NOT throw' +
+      (nul.err ? ` -- ${String(nul.err).slice(0, 140)}` : ''));
+    if (!nul.err) {
+      ok(nul.r.tuneOk === false, 'null banks nothing (tuneOk false, so the accept branch is skipped)');
+      ok(nul.r.tunedOps.length === 0, 'null names no ops');
+      ok(nul.r.calls.length === 0, 'null attests nothing — silence about a record it never read');
+      ok(nul.r.logs.length === 0, 'null logs no attestation verdict either');
+    }
+
+    ok(!empty.err && empty.r.tunedOps.length === 0 && empty.r.calls.length === 0,
+      'a worker that answered with no ops is the same story: no throw, nothing attested');
+
+    ok(!recalled.err && recalled.r.calls.length === 1,
+      'POSITIVE CONTROL: a recalled op IS still attested (the guard did not neuter the block)' +
+      (recalled.err ? ` -- ${String(recalled.err).slice(0, 140)}` : ''));
+    if (!recalled.err && recalled.r.calls.length === 1) {
+      const cmd = recalled.r.calls[0];
+      ok(/attest --plane local/.test(cmd),
+        '...to the plane that ANSWERED (local), not the requested `both`');
+      ok(/--outcome validated/.test(cmd), '...with the verdict this box measured');
+      ok(/banked=false/.test(cmd),
+        '...and recorded as unbanked rather than withheld — the recall won inside a phase that did not');
+    }
+  }
+
+  console.log(failures === 0
+    ? '\nPASS: tuning skillset is vendored whole and runs standalone before HeadKernel.'
+    : `\nFAILED: ${failures} assertion(s).`);
+  process.exit(failures === 0 ? 0 : 1);
+}

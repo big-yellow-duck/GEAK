@@ -1,7 +1,9 @@
-# e2e_workflow — End-to-End LLM Inference-Throughput Optimizer (AMD Instinct MI GPUs)
+# e2e_workflow — End-to-End LLM Inference-Throughput Optimizer (AMD Instinct + R9700)
 
-A deterministic **Workflow** (JS-orchestrated multi-agent pipeline) that raises the **sglang/vllm
-serving throughput** of an LLM on AMD Instinct MI GPUs. It is a *system layer* built on top of — and recursively
+A deterministic **Workflow** (JS-orchestrated multi-agent pipeline) that raises the **sglang/vllm/ATOM
+serving throughput** of an LLM on AMD Instinct MI GPUs and the validated Radeon AI PRO R9700
+(gfx1201, vLLM only). Generic gfx1201 is an ISA identity, not a supported serving product.
+It is a *system layer* built on top of — and recursively
 calling — the UNCHANGED single-kernel `kernel_workflow` (`../kernel_workflow/`). The single-kernel workflow's
 quality is preserved verbatim; this layer adds everything above the kernel: profiling a running
 server, Amdahl triage, config/backend tuning, extracting hot kernels into standalone unittests,
@@ -48,11 +50,12 @@ LOOP milestone[ plan → per kernel: Extract → recursive kernel_workflow.js �
 Finalize(overlay+patch+launch bundle) → Architect Report → Director Validation
 ```
 Setup runs a **preflight** (see `knowledge/preflight.md`) — a judgment-guided env self-check (not a
-rigid script): it confirms the chosen `backend` stack, the model, GPU visibility; detects gfx, trace
+rigid script): it confirms the chosen `backend` stack, the model, GPU visibility; verifies the
+caller-established structured product/ISA/CU identity, detects trace
 sources, available op backends, and the model's arch class; degrades gracefully and writes
 `env_report.{md,json}` that every later phase routes on.
 Every accepted change compounds into the carried-forward overlay + config; throughput is always
-measured warm, repeated, median, vs the TRUE baseline.
+measured on a warm server, in the same lifecycle as the TRUE baseline it is compared against.
 
 On RDNA4 gfx1200/gfx1201, preflight records wave32/WGP/WMMA/GDDR hardware facts, marks AITER
 policy-disabled without importing it, and probes standalone upstream FlyDSL. Config/head-kernel routing
@@ -61,19 +64,26 @@ fully architecture-aware, while end-to-end execution additionally requires the c
 and model footprint to work on the Radeon card.
 
 ## Pluggable serving backend
-The serving stack is NOT baked in. `args.backend` (sglang|vllm, default sglang) selects
+The serving stack is NOT baked in. `args.backend` (sglang|vllm|atom, default sglang) selects
 `scripts/adapters/<backend>.sh`, which `scripts/bench_e2e.sh` (a backend-agnostic dispatcher: owns
-server lifecycle, warmup, repeats, median+spread summary, free-port allocation) sources. Adding a new
+server lifecycle, warmup, timed round(s), summary, free-port allocation) sources. Adding a new
 stack = adding one adapter that defines `adapter_launch / adapter_health / adapter_bench`
 (+ optional `adapter_default_port`). No role or orchestration change. `MODEL` is **required** — there
 is no rig-specific default that could silently bench the wrong target.
+
+ATOM profiling is configured through `--torch-profiler-dir` at server launch and
+`ATOM_PROFILER_MORE=1` for shape-bearing traces. It writes a trace below a separate `rank_<N>` (or
+`dp<D>_tp<N>`) directory for each worker; `adapter_profile_window` waits for every expected gzip to
+finalize and writes `atom_profile_manifest.json`. A missing or incomplete manifest is a failed ATOM
+profile rather than permission to continue with a partial rank-0 trace.
 
 ## The three backend dimensions (per spec)
 A kernel's backend can be changed from three places, in increasing cost (knob names are backend-
 specific — see `perf_knowledge/backends/<backend>/` + `perf_knowledge/reference/env_vars.md`, as
 reference only; verify every switch by measuring):
 1. **launch flags** (`--attention-backend`, `--quantization`, …) — Config Tuner
-2. **env vars** (sglang `SGLANG_USE_AITER` / vllm `VLLM_ROCM_USE_AITER`, `HIPBLASLT_TUNING_FILE`, …) — Config Tuner
+2. **env vars** (sglang `SGLANG_USE_AITER`, vllm `VLLM_ROCM_USE_AITER`, ATOM
+   `ATOM_USE_TRITON_{MLA,MOE,GEMM}` / `ATOM_ENABLE_*_FUSION`, `HIPBLASLT_TUNING_FILE`, …) — Config Tuner
 3. **source** (a Triton/**FlyDSL**/HIP/CK/asm reimplementation) — Kernel Extractor + kernel squad,
    overlaid back reversibly (never editing site-packages). For a hot op with **no existing editable
    implementation**, the head track now **authors one from scratch**: the Op Benchmarker DISCOVERs
@@ -88,15 +98,21 @@ reference only; verify every switch by measuring):
    step). HIP/CK when the headroom justifies them (`head_author_max`, default 2 = FlyDSL+Triton).
 
 ## Invocation
-Run via the `Workflow` tool. `workflow_dir` must be this folder (a JS workflow can't read its own
-path); the kernel layer defaults to the sibling `kernel_workflow/`.
+Production callers should use `interface/run_e2e.py`, which performs structured
+on-box identity detection before backend and knowledge policy are selected. A
+direct model-mode `Workflow` call must supply both `expected_gfx` and
+`expected_target`; this entry fails closed when either is missing.
+`workflow_dir` must be this folder (a JS workflow can't read its own path); the
+kernel layer defaults to the sibling `kernel_workflow/`.
 ```
 Workflow({
   scriptPath: "<E2E_DIR>/e2e_workflow.js",
   args: {
     model_path: "/path/to/model",                    // REQUIRED for e2e mode (no default)
     workflow_dir: "<E2E_DIR>",                       // REQUIRED: this folder
-    backend: "sglang",                               // optional: sglang|vllm (selects scripts/adapters/<backend>.sh)
+    expected_gfx: "gfx950",                          // REQUIRED direct E2E identity
+    expected_target: "unknown",                      // REQUIRED: r9700|unknown; gfx1201 never implies r9700
+    backend: "sglang",                               // optional: sglang|vllm|atom (selects scripts/adapters/<backend>.sh) on Instinct (default sglang); R9700 is vllm-only (default vllm)
     launch_script: "<...>/launch.sh",                // optional; else the stack's default config
     kernel_workflow_dir: "<...>/workflows",          // optional; default = sibling kernel_workflow/
     budget: 4,            // max kernel-optimization tasks (kernel-layer tasks; config sweep is free)
@@ -277,7 +293,7 @@ roles/                 director, system_architect, profiler, config_tuner, tunin
 knowledge/             e2e_optimization, profile_parse, preflight (env self-check), backend_playbook + gemm_attention_backends (persistent), sglang_internals, shape_capture
 knowledge/analysis_skills/  pluggable profile-analysis skills (INDEX.md + one dir per skill; `roofline` ships by default)
 knowledge/tuning_skillset_integration.md  how the VENDORED ../tuning_skillset/ is wired in (+ its manifest)
-scripts/               bench_e2e.sh (backend-agnostic dispatcher), adapters/{sglang,vllm}.sh, parse_profile.py (Top-N), op_bench.py, capture_shapes.py, overlay_setup.py
+scripts/               bench_e2e.sh (backend-agnostic dispatcher), adapters/{sglang,vllm,atom}.sh, parse_profile.py (Top-N), op_bench.py, capture_shapes.py, overlay_setup.py
 scripts/tuning_skillset_sync.py  integrity gate on the vendored skillset (--verify / --update / --sync)
 scripts/server_teardown.sh  the shared server-kill contract (identity verified at LAUNCH: pid, pgid, /proc start time). Every script that launches a server, including role-authored capture scripts, must source it instead of hand-rolling a kill.
 ```

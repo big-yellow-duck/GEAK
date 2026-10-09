@@ -28,6 +28,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GPU_SPEC="${1:?Usage: gpu_lock.sh <gpu_id|pool> <command...>   (pool = comma list of the GPUs THIS run was allocated)}"
 shift
 
+# Source provenance is checked before executing any command and again on exit:
+# generated builders can recreate a stale overlay during the command itself.
+# Exit 86 invalidates all output from that invocation, even if it printed PASS.
+SOURCE_GUARD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/workspace_sources.py"
+SOURCE_WORKSPACE="$PWD"
+python3 "$SOURCE_GUARD" check --workspace "$SOURCE_WORKSPACE"
+_source_audit_size=$(stat -c %s "$SOURCE_WORKSPACE/.geak/invalid_measurements.jsonl" 2>/dev/null || echo 0)
+_check_sources_on_exit() {
+    local command_status=$?
+    trap - EXIT
+    python3 "$SOURCE_GUARD" check --workspace "$SOURCE_WORKSPACE" || exit 86
+    # A builder may catch a check-input failure and continue, or repair the link
+    # later in the same command. Neither makes that invocation's output valid.
+    local audit_size
+    audit_size=$(stat -c %s "$SOURCE_WORKSPACE/.geak/invalid_measurements.jsonl" 2>/dev/null || echo 0)
+    if [ "$audit_size" != "$_source_audit_size" ]; then
+        echo "GEAK_SOURCE_INVALID: source validation failed during this command; discard all measurement output." >&2
+        exit 86
+    fi
+    exit "$command_status"
+}
+trap _check_sources_on_exit EXIT
+
 LOCK_DIR="/tmp/team_gpu_locks"
 mkdir -p "$LOCK_DIR"
 
@@ -98,6 +121,7 @@ case "$GPU_SPEC" in
     GPU_ID=""
     while [ -z "$GPU_ID" ]; do
         for _g in $POOL; do
+            # (1) flock: exclusive lane. Held until this process exits.
             exec {_fd}>"${LOCK_DIR}/gpu_${_g}.lock"
             if flock -n -x "$_fd"; then
                 # We hold the lane. Only now check idleness -- checking before locking would race.
@@ -158,40 +182,56 @@ fi
 export TORCH_EXTENSIONS_DIR
 mkdir -p "$TORCH_EXTENSIONS_DIR" 2>/dev/null || true
 
-# (3) Compile for the local GPU arch only. The environment's default PYTORCH_ROCM_ARCH is often a
-# long multi-arch list (~9 targets) → ~9x slower compiles for no benefit on a single-arch box. We
-# OVERRIDE it to the detected local arch. Set KERNEL_ENV_KEEP_ARCH=1 to opt out (multi-arch boxes).
-if [ "${KERNEL_ENV_KEEP_ARCH:-0}" != "1" ]; then
-    _ARCH="$(rocminfo 2>/dev/null | grep -m1 -oE 'gfx[0-9a-f]+' || true)"
-    [ -n "${_ARCH:-}" ] && export PYTORCH_ROCM_ARCH="$_ARCH"
-    # Also pin GPU_ARCHS so aiter's JIT (chip_info.get_gfx_list) takes the env branch instead of
-    # _detect_native(), which shells to rocm_agent_enumerator -> rocminfo PER cold-build worker
-    # (~77 per cold aiter import). Under the parallel bake-off (isolated per-workspace build caches =>
-    # many cold builds) those rocminfo calls hang on the contended KFD driver and pile up by the
-    # hundreds -> kernel task-count explosion + ~2x serving-throughput degradation. Setting GPU_ARCHS
-    # eliminates the spawn at the source (the reap above is now just a backstop). Honor a caller value.
-    [ -n "${_ARCH:-}" ] && export GPU_ARCHS="${GPU_ARCHS:-$_ARCH}"
-    # FlyDSL is an independent compiler/runtime (not an AITER-only backend). Its
-    # upstream detector accepts FLYDSL_GPU_ARCH and has a native gfx120x
-    # wave32/WMMA path. Pin it to the same physical target as HIP/Torch so every
-    # lane compiles for the device it is measured on.
-    [ -n "${_ARCH:-}" ] && export FLYDSL_GPU_ARCH="${FLYDSL_GPU_ARCH:-$_ARCH}"
-fi
+# (3) Compile for the selected GPU's arch only. HIP_VISIBLE_DEVICES does NOT
+# filter rocminfo. When the launcher did not already provide a ROCR allocation,
+# scope only this rocminfo subprocess to the locked physical GPU. Preserve an
+# inherited ROCR mask because GPU_ID is then logical within that allocation.
+# Refuse a genuinely mixed-ISA allocation: compiling for one ISA while locked
+# to another is a silent wrong-arch result.
+# Set KERNEL_ENV_KEEP_ARCH=1 to opt out (intentional multi-arch boxes).
+_rocminfo_gpu_gfx_list() {
+    if [ -n "${ROCR_VISIBLE_DEVICES:-}" ] || [ -z "${GPU_ID:-}" ]; then
+        rocminfo 2>/dev/null
+    else
+        ROCR_VISIBLE_DEVICES="$GPU_ID" rocminfo 2>/dev/null
+    fi | awk '
+          /^ *Name: *gfx[0-9a-f]+/ && $2 != "gfx000" { print $2 }
+        '
+}
 
-# Give every benchmark/compiler subprocess a stable architecture family and
-# logical wave size. These are advisory environment facts; kernels must still
-# use compiler/runtime queries instead of baking them into portable source.
-_DETECT_ARCH="$SCRIPT_DIR/detect_gpu_arch.sh"
-if [ -r "$_DETECT_ARCH" ]; then
-    eval "$(GEAK_GPU_GFX="${_ARCH:-${GEAK_GPU_GFX:-}}" bash "$_DETECT_ARCH")"
+_pin_compile_arch() {
+    [ "${KERNEL_ENV_KEEP_ARCH:-0}" = "1" ] && return 0
+    local gfxs unique n
+    gfxs="$(_rocminfo_gpu_gfx_list || true)"
+    [ -z "${gfxs:-}" ] && return 0
+    unique="$(printf '%s\n' $gfxs | sort -u)"
+    n="$(printf '%s\n' $unique | grep -c . || true)"
+    if [ "${n:-0}" -gt 1 ]; then
+        echo "ERROR: gpu_lock.sh: mixed GPU ISAs in this pool ($unique); refusing to guess PYTORCH_ROCM_ARCH." >&2
+        echo "       Run on a homogeneous pool or set KERNEL_ENV_KEEP_ARCH=1 with an explicit PYTORCH_ROCM_ARCH." >&2
+        return 1
+    fi
+    _ARCH="$(printf '%s\n' $unique | head -1)"
+    [ -n "${_ARCH:-}" ] && export PYTORCH_ROCM_ARCH="$_ARCH"
+    # aiter's native detector spawns rocm_agent_enumerator per process; pinning
+    # GPU_ARCHS avoids an enumerator storm as well as redundant multi-ISA builds.
+    [ -n "${_ARCH:-}" ] && export GPU_ARCHS="${GPU_ARCHS:-$_ARCH}"
+    # Direct FlyDSL must compile for the same locked device, independent of AITER.
+    [ -n "${_ARCH:-}" ] && export FLYDSL_GPU_ARCH="$_ARCH"
+    local arch_facts
+    arch_facts="$(GEAK_GPU_GFX="$_ARCH" GEAK_GPU_CU_COUNT= GEAK_GPU_WGP_COUNT= \
+        bash "$SCRIPT_DIR/detect_gpu_arch.sh")" || return 1
+    eval "$arch_facts"
     export GEAK_GPU_GFX GEAK_GPU_ARCH_CLASS GEAK_GPU_WAVE_SIZE GEAK_GPU_CU_COUNT GEAK_GPU_WGP_COUNT
-fi
+
+}
 
 if [ -n "${POOL_FD:-}" ]; then
-    # Pool mode: this process ALREADY holds the lane exclusively (and verified it idle). Re-locking
-    # the same file from the same process would be a no-op at best, so just run -- the lane stays
-    # held until we exit, which is what guarantees no two evaluations share a GPU.
+    # Pool mode: (1) this process ALREADY holds the lane exclusively (and verified it idle).
+    # Re-locking the same file from the same process would be a no-op at best, so just run --
+    # the lane stays held until we exit, which is what guarantees no two evaluations share a GPU.
     export HIP_VISIBLE_DEVICES="$GPU_ID"
+    _pin_compile_arch || exit 1   # (3) after the selected GPU is visible
     "$@"
 else
     # Single-GPU mode BLOCKS TOO, and its wait must be measured for the same reason the pool's is.
@@ -201,6 +241,7 @@ else
     # advantage into the instrument. Both paths measure, so the comparison is real.
     _wait_t0=$SECONDS
     (
+        # (1) flock this GPU (exclusive for the duration of the command).
         flock -x -w 1200 200 || { echo "ERROR: Failed to acquire GPU $GPU_ID lock after 1200s"; exit 1; }
         # Default 1, matching pool mode above. It was 0 here, so a PINNED engineer skipped the
         # foreign-work check entirely -- not "sampled it once", never ran it. That is how two
@@ -218,6 +259,7 @@ else
             echo "{\"t\":$(date +%s),\"gpu\":$GPU_ID,\"pool\":\"$GPU_SPEC\",\"pid\":$$,\"mode\":\"pin\",\"wait_s\":$(( SECONDS - _wait_t0 ))}" \
                 >> "$GEAK_GPU_USE_LOG" 2>/dev/null
         export HIP_VISIBLE_DEVICES="$GPU_ID"
+        _pin_compile_arch || exit 1   # (3) after the selected GPU is visible
         "$@"
     ) 200>"$LOCK_FILE"
 fi

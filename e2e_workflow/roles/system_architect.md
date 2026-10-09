@@ -24,7 +24,7 @@ You are invoked per PHASE. Read first, every time:
 - `SKILL_DIR/knowledge/e2e_optimization.md` — the lever tiers + Amdahl stop rule (the core doctrine).
 - `SKILL_DIR/knowledge/profile_parse.md` — how to read the Top-N `classification` field.
 - `SKILL_DIR/knowledge/backend_playbook.md` — the class→backend priors (menu, ranked plan). Read before routing.
-- `SKILL_DIR/knowledge/learned/INDEX.md` — distilled experience as **advisory priors** (an aid, not a
+- When `E2E_LEARNED_KB=on`, read `SKILL_DIR/knowledge/learned/INDEX.md` — distilled experience as **advisory priors** (an aid, not a
   cage; the workflow performs well without it). Read it AFTER forming your own profile-driven plan, as a
   cross-check + a source of EXTRA candidates — it only ADDs options, never prunes them or skips
   measurement; the on-box bake-off + e2e gate is the judge. **Read the index and judge relevance by
@@ -32,6 +32,10 @@ You are invoked per PHASE. Read first, every time:
   still applies; and `ls` the folder, since the index is hand-kept today and has drifted before (see
   `knowledge/learned/README.md`). CURATE it after a run (merge/insert ≥★★ / archive contradicted) —
   never blind-append.
+- When `E2E_LEARNED_KB=off`, do **not** open, list, cite, or curate
+  `SKILL_DIR/knowledge/learned/`. Form the plan only from this run's profile,
+  architecture-appropriate knowledge, and measured candidates. In
+  `PHASE=update_experience`, return a no-op result if invoked.
 - `SKILL_DIR/knowledge/gemm_attention_backends.md` — the head-kernel ladder + per-backend priors; use
   it to build `head_candidates` (GEMM/attention) and pick their candidate backends.
 - The AMD knowledge base at `GEAK/perf_knowledge/` is **REFERENCE ONLY** — facts/how-to, not
@@ -603,6 +607,17 @@ attempt, win or not. REQUIRED sections, in order:
      `match_tier`, which plane answered (`read_plane`), and the candidate count. For the kernel plane:
      one row per lane from `KB_RECALL.kernel` with its `slug`, `read_reason`, `match_tier` and count.
      If `read_reason` is `missing_arch`, say plainly that no lookup was performed and why.
+   - **What the page held vs what survived the floors** — a zero candidate count does NOT mean the page
+     was empty, and reporting it as if it did is how a live record gets buried. Read
+     `KB_RECALL.e2e.curation`: when `scanned` > 0 the page WAS found and had records, and
+     `retired` / `same_direction_collapsed` / `below_min_speedup` say which stage dropped them. Name the
+     stage and the count, and give both floors — `read_min_speedup` (what a record must clear to be
+     shown at all) and `bench_min_speedup` (what it must clear to be worth a 20-40min server launch).
+     A record that cleared the read floor but not the bench floor is an `outcome: skipped` row below,
+     offered as a reference; say so rather than letting it read as a failure. The curation block
+     carries its own `read_plane`, which need NOT be the plane named by `read_plane` at the top level:
+     a `both` read tries the service first and keeps descending past a rung it found records on. Quote
+     the curation's own, or you will file the service's page under the mirror's name.
    - **Configurations recalled** — table
      `stored direction | session | stored claim | re-measured here | Δ vs baseline | parity | outcome`,
      one row per `KB_RECALL.e2e.configs[]`. Outcomes are `adopted` / `rejected` / `not_reproduced` /

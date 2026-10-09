@@ -10,7 +10,7 @@ the path that actually *launches* the optimizer, so a break there is invisible
 until a real 12-hour GPU run dies. This module covers:
 
   - handoff -> workflow args (``map_args``): the optional knobs (launch_recipe,
-    phases, e2e_repeats, carried state, time_budget_s), the minted-vs-pinned
+    phases, carried state, time_budget_s), the minted-vs-pinned
     eval_dir, and the TraceLens artifact bridge. A dropped knob here silently
     re-runs a phase that was meant to be resumed, or mints a second abandoned
     eval_dir beside the authoritative one.
@@ -187,6 +187,12 @@ class _RunE2ECase(unittest.TestCase):
 
     def setUp(self):
         self._env = dict(os.environ)
+        os.environ["GEAK_GPU_IDENTITY_JSON"] = json.dumps({
+            "gfx": "gfx950",
+            "target": "unknown",
+            "marketing_name": "AMD Instinct MI355X",
+            "physical_cu_count": 256,
+        })
         self._attrs: list[tuple[str, object]] = []
         self._mods: list[tuple[str, object]] = []
         self._sigterm = signal.getsignal(signal.SIGTERM)
@@ -238,9 +244,29 @@ class TestMapArgs(_RunE2ECase):
         h.update(extra)
         return h
 
+    def _write_roofline_trace(
+        self,
+        root: Path,
+        run_id: str,
+        timestamp: str,
+        *,
+        framework: str = "sglang",
+    ) -> Path:
+        run_dir = root / "runs" / "roofline" / run_id
+        trace_dir = run_dir / f"benchmark_{framework}_{timestamp}" / "torch_trace"
+        trace_dir.mkdir(parents=True, exist_ok=True)
+        (trace_dir / "1-TP-0.trace.json.gz").write_text("x", encoding="utf-8")
+        return trace_dir
+
     def test_optional_workflow_knobs_are_forwarded_verbatim(self):
-        """launch_recipe / phases / e2e_repeats / carried state are the resume
-        channel: dropping one silently re-runs a phase the caller pinned."""
+        """launch_recipe / phases / carried state are the resume channel:
+        dropping one silently re-runs a phase the caller pinned.
+
+        `e2e_repeats` is deliberately NOT in that channel. The timed-round count
+        is a property of the measurement lifecycle (GEAK_REPEAT_MODE +
+        MEASUREMENT_PURPOSE), so a handoff carrying it must be ignored rather
+        than allowed to pull one leg off the lifecycle the rest of the run used.
+        """
         h = self._handoff(
             eval_dir=str(self.tmp / "e2e_pinned"),
             launch_recipe="/recipes/launch_vllm.sh",
@@ -251,7 +277,7 @@ class TestMapArgs(_RunE2ECase):
         ps = rx.map_args(h, timeout_s=3600)
         self.assertEqual(ps["launch_script"], "/recipes/launch_vllm.sh")
         self.assertEqual(ps["phases"], "final")
-        self.assertEqual(ps["e2e_repeats"], 1)
+        self.assertNotIn("e2e_repeats", ps)
         self.assertEqual(ps["state"], {"headQueue": [{"short_name": "h0"}]})
         self.assertEqual(ps["time_budget_s"], 3600)
         self.assertEqual(ps["eval_dir"], str(self.tmp / "e2e_pinned"))
@@ -259,6 +285,100 @@ class TestMapArgs(_RunE2ECase):
         self.assertEqual(ps["gpu_ids"], "0,1,2,3")
         self.assertEqual(ps["config_tune"], "false")
         self.assertEqual(ps["apply_to_original"], "true")
+
+    def test_structured_identity_is_forwarded_before_policy(self):
+        ps = rx.map_args(self._handoff(eval_dir=str(self.tmp / "e2e_identity")))
+        self.assertEqual(ps["expected_gfx"], "gfx950")
+        self.assertEqual(ps["expected_target"], "unknown")
+        self.assertEqual(ps["expected_physical_cu_count"], 256)
+        self.assertEqual(ps["backend"], "sglang")
+
+    def test_probe_less_dry_run_marks_identity_unavailable(self):
+        os.environ.pop("GEAK_GPU_IDENTITY_JSON", None)
+        self.patch_rx(
+            "_expected_gpu_identity",
+            lambda _handoff: self.fail("dry-run must not probe GPU identity"),
+        )
+        ps = rx.map_args(
+            self._handoff(eval_dir=str(self.tmp / "e2e_dry_no_gpu")),
+            dry_run=True,
+        )
+        self.assertEqual(ps["gpu_identity_status"], "unavailable_dry_run")
+        self.assertNotIn("expected_gfx", ps)
+        self.assertNotIn("expected_target", ps)
+
+    def test_explicit_r9700_identity_selects_vllm_without_gfx_promotion(self):
+        ps = rx.map_args(self._handoff(
+            eval_dir=str(self.tmp / "e2e_r9700"),
+            expected_gfx="gfx1201",
+            expected_target="r9700",
+            expected_device_name="AMD Radeon AI PRO R9700",
+            expected_physical_cu_count=64,
+        ))
+        self.assertEqual(ps["expected_target"], "r9700")
+        self.assertEqual(ps["backend"], "vllm")
+
+    def test_partial_or_incompatible_product_identity_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "supplied together"):
+            rx.map_args(self._handoff(expected_gfx="gfx1201"))
+        with self.assertRaisesRegex(ValueError, "requires expected_gfx=gfx1201"):
+            rx.map_args(self._handoff(
+                expected_gfx="gfx950", expected_target="r9700",
+            ))
+
+    def test_explicit_identity_rejects_malformed_values(self):
+        with self.assertRaisesRegex(ValueError, "invalid expected_gfx"):
+            rx._expected_gpu_identity(
+                {"expected_gfx": "rdna4", "expected_target": "unknown"})
+        with self.assertRaisesRegex(ValueError, "must be 'r9700' or 'unknown'"):
+            rx._expected_gpu_identity(
+                {"expected_gfx": "gfx1201", "expected_target": "r9600"})
+
+    def test_env_identity_must_be_valid_and_consistent(self):
+        cases = [
+            ("{not json", ValueError, "not valid JSON"),
+            (json.dumps({"gfx": "RDNA4"}), RuntimeError, "invalid gfx"),
+            (json.dumps({"gfx": "gfx1201", "target": "r9600"}),
+             RuntimeError, "invalid target"),
+            (json.dumps({"gfx": "gfx950", "target": "r9700"}),
+             RuntimeError, "r9700 on a non-gfx1201 ISA"),
+        ]
+        for raw, exc, pattern in cases:
+            with self.subTest(raw=raw):
+                os.environ["GEAK_GPU_IDENTITY_JSON"] = raw
+                with self.assertRaisesRegex(exc, pattern):
+                    rx._expected_gpu_identity({})
+
+    def test_identity_probe_is_structured_and_fails_closed(self):
+        """Without a pinned or env identity, the rocminfo probe is the only
+        source; a failed or garbled probe must stop policy selection."""
+        os.environ.pop("GEAK_GPU_IDENTITY_JSON", None)
+        calls = []
+
+        def probe(returncode=0, stdout="", stderr=""):
+            def run(argv, **_kwargs):
+                calls.append(argv)
+                return types.SimpleNamespace(
+                    returncode=returncode, stdout=stdout, stderr=stderr)
+            return types.SimpleNamespace(run=run)
+
+        self.patch_rx("subprocess", probe(stdout=json.dumps({
+            "gfx": "gfx1201", "target": "r9700",
+            "marketing_name": "AMD Radeon AI PRO R9700", "physical_cu_count": 64,
+        })))
+        identity = rx._expected_gpu_identity({})
+        self.assertEqual(identity["target"], "r9700")
+        self.assertEqual(identity["physical_cu_count"], 64)
+        self.assertEqual(calls[-1][-1], str(rx.GPU_IDENTITY_SCRIPT))
+
+        self.patch_rx("subprocess", probe(returncode=1, stderr="no GPU agent"))
+        with self.assertRaisesRegex(
+            RuntimeError, "no GPU agent.*Pass expected_gfx and expected_target"):
+            rx._expected_gpu_identity({})
+
+        self.patch_rx("subprocess", probe(stdout="not json"))
+        with self.assertRaisesRegex(RuntimeError, "returned invalid JSON"):
+            rx._expected_gpu_identity({})
 
     def test_budget_omitted_when_unknown(self):
         """No timeout => the workflow stays budget-unaware (byte-identical to a
@@ -313,10 +433,12 @@ class TestMapArgs(_RunE2ECase):
         analysis = root / "kernel-agent" / "r1" / "tracelens" / "analysis.md"
         cands = root / "kernel-agent" / "r1" / "kernel_candidates.json"
         report = root / "kernel-agent" / "r1" / "tracelens" / "tracelens_report.json"
-        trace = root / "runs" / "roofline" / "r9" / "torch_trace"
-        for p in (analysis, cands, report, trace):
+        for p in (analysis, cands, report):
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text("x", encoding="utf-8")
+        trace = self._write_roofline_trace(
+            root, "synthetic-run", "20260102_020202"
+        )
         ps = rx.map_args(self._handoff(eval_dir=str(self.tmp / "e2e_x")))
         self.assertEqual(ps["tracelens"], {
             "analysis_md": str(analysis),
@@ -325,6 +447,37 @@ class TestMapArgs(_RunE2ECase):
             "trace_file": str(trace),
         })
         self.assertNotIn("search_root", ps["tracelens"])
+
+    def test_roofline_trace_orders_by_benchmark_time_not_random_run_id(self):
+        root = self.tmp / "exp"
+        oldest = self._write_roofline_trace(
+            root, "ffffffffffffffffffffffffffffffff", "20260101_010101"
+        )
+        newest = self._write_roofline_trace(
+            root, "11111111111111111111111111111111", "20260102_020202",
+            framework="vllm",
+        )
+        report = rx.resolve_tracelens_report(str(root / "geak"))
+        self.assertNotEqual(str(oldest), str(newest))
+        self.assertEqual(report["trace_file"], str(newest))
+
+    def test_roofline_trace_respects_handoff_cutoff(self):
+        root = self.tmp / "exp"
+        self._write_roofline_trace(
+            root, "ffffffffffffffffffffffffffffffff", "20260101_010101",
+        )
+        expected = self._write_roofline_trace(
+            root, "11111111111111111111111111111111", "20260102_020202",
+        )
+        self._write_roofline_trace(
+            root, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "20260103_030303",
+        )
+        cutoff = rx.datetime.strptime(
+            "20260102_030000", "%Y%m%d_%H%M%S"
+        ).replace(tzinfo=rx.timezone.utc).timestamp()
+        handoff = self._handoff(eval_dir=str(self.tmp / "e2e_x"))
+        ps = rx.map_args(handoff, artifact_cutoff_ts=cutoff)
+        self.assertEqual(ps["tracelens"]["trace_file"], str(expected))
 
     def test_tracelens_key_omitted_when_nothing_discoverable(self):
         ps = rx.map_args(self._handoff(eval_dir=str(self.tmp / "e2e_x")))
@@ -352,6 +505,21 @@ class TestMapArgs(_RunE2ECase):
         self.assertIn("tracelens_report", prompt)
         # search_root is internal bookkeeping and must never reach the agent.
         self.assertNotIn("search_root", prompt)
+
+    def test_build_prompt_uses_frozen_tracelens_without_rescanning(self):
+        frozen = {
+            "analysis_md": "/frozen/analysis.md",
+            "trace_file": "/frozen/torch_trace",
+        }
+        ps = rx.map_args(self._handoff(eval_dir=str(self.tmp / "e2e_prompt")))
+        ps["tracelens"] = frozen
+        self.patch_rx(
+            "resolve_tracelens_report",
+            lambda *_args, **_kwargs: self.fail("build_prompt rescanned artifacts"),
+        )
+        prompt = rx.build_prompt(ps)
+        self.assertIn("/frozen/analysis.md", prompt)
+        self.assertIn("/frozen/torch_trace", prompt)
 
     def test_build_prompt_leads_with_process_safety(self):
         """The driver agent holds Bash under bypassPermissions as a direct child of
@@ -447,6 +615,60 @@ class TestBenchClient(_RunE2ECase):
         os.environ["INFERENCEX_PATH"] = "/env/inferencex"
         self.assertEqual(rx.apply_bench_client({"bench_client": "auto"}), "inferencex")
 
+    def test_auto_selects_agentx_when_workload_spec_says_so(self):
+        os.environ.pop("INFERENCEX_PATH", None)
+        h = {
+            "inferencex_path": "/opt/inferencex",
+            "workload_spec": {"kind": rx.WORKLOAD_KIND_AGENTX, "client": "aiperf"},
+        }
+        self.assertEqual(rx.apply_bench_client(h), rx.AGENTX_BENCH_CLIENT)
+        self.assertEqual(os.environ["BENCH_CLIENT"], rx.AGENTX_BENCH_CLIENT)
+
+    def test_agentx_handoff_forces_agentx_over_explicit_inferencex(self):
+        os.environ["INFERENCEX_PATH"] = "/opt/inferencex"
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            client = rx.apply_bench_client(
+                {
+                    "bench_client": "inferencex",
+                    "inferencex_path": "/opt/inferencex",
+                    "workload_spec": {"kind": rx.WORKLOAD_KIND_AGENTX},
+                }
+            )
+        self.assertEqual(client, rx.AGENTX_BENCH_CLIENT)
+        self.assertIn("forcing bench_client", err.getvalue())
+
+    def test_apply_workload_spec_exports_agentx_knobs(self):
+        os.environ.pop("GEAK_WORKLOAD_KIND", None)
+        os.environ.pop("GEAK_ISL_OSL_INACTIVE", None)
+        os.environ.pop("REPEATS", None)
+        exported = rx.apply_workload_spec(
+            {
+                "workload_spec": {
+                    "kind": rx.WORKLOAD_KIND_AGENTX,
+                    "scenario": "inferencex-agentx-mvp",
+                    "corpus": "semianalysis_cc_traces_weka_062126",
+                    "duration_s": 3600,
+                    "geak_loop_duration_s": 900,
+                    "concurrency": 8,
+                    # The orchestrator names the axis it graded on; the replay
+                    # client has to measure that same axis or the two harnesses
+                    # report different quantities under one name.
+                    "metric_basis": "aggregate_output_tok_s",
+                }
+            }
+        )
+        self.assertEqual(os.environ["GEAK_WORKLOAD_KIND"], rx.WORKLOAD_KIND_AGENTX)
+        self.assertEqual(os.environ["GEAK_ISL_OSL_INACTIVE"], "1")
+        self.assertEqual(os.environ["AGENTX_DATASET"], "semianalysis_cc_traces_weka_062126")
+        self.assertEqual(exported["REPEATS"], "1")
+        self.assertEqual(os.environ["GEAK_METRIC_BASIS"], "aggregate_output_tok_s")
+        self.assertEqual(exported["GEAK_METRIC_BASIS"], "aggregate_output_tok_s")
+
+    def test_apply_workload_spec_noop_on_synthetic_handoff(self):
+        os.environ.pop("GEAK_WORKLOAD_KIND", None)
+        self.assertEqual(rx.apply_workload_spec({"workload": {"isl": 1024}}), {})
+        self.assertNotIn("GEAK_WORKLOAD_KIND", os.environ)
+
     def test_explicit_inferencex_without_path_degrades_loudly(self):
         """Silently measuring with a different client than the orchestrator is
         the failure this warning exists to prevent."""
@@ -470,15 +692,16 @@ class TestBenchLauncher(_RunE2ECase):
     def setUp(self):
         super().setUp()
         for key in ("BENCH_LAUNCHER", "MAGPIE_LAUNCH_SCRIPT",
-                    "MAGPIE_LAUNCH_SCRIPT_SOURCE", "MAGPIE_VLLM_SCRIPT",
+                    "MAGPIE_LAUNCH_SCRIPT_SOURCE", "MAGPIE_ATOM_SCRIPT",
+                    "MAGPIE_VLLM_SCRIPT",
                     "MAGPIE_SGLANG_SCRIPT", "MAX_MODEL_LEN",
                     "RECIPE_ENV_FILE", "RECIPE_ENV_SOURCE", "RECIPE_ENV_REPLAYED",
                     "RECIPE_ENV_GEAK_OWNED", "GEAK_STRICT_RECIPE_ENV",
                     "EFFECTIVE_SERVER_ARGS_COMPLETE"):
             os.environ.pop(key, None)
 
-    def _recipe(self, *, script="vllm_mi355x.sh", subdir="", root=None,
-                with_lib=True, write_script=True):
+    def _recipe(self, *, script="vllm_mi355x.sh", framework="vllm", subdir="",
+                root=None, with_lib=True, write_script=True):
         """An orchestrator launch recipe next to a checkout it can point at.
 
         ``write_script=False`` + ``with_lib=False`` leaves the checkout path
@@ -497,7 +720,7 @@ class TestBenchLauncher(_RunE2ECase):
         recipe = self.tmp / "baseline_config.with_envs.yaml"
         recipe.write_text(
             "benchmark:\n"
-            "  framework: vllm\n"
+            f"  framework: {framework}\n"
             "  model: /models/Qwen3-8B\n"
             "  envs:\n"
             "    TP: 1\n"
@@ -539,6 +762,27 @@ class TestBenchLauncher(_RunE2ECase):
         os.environ["MAGPIE_SGLANG_SCRIPT"] = "/magpie/sglang.sh"
         self.assertEqual(rx.apply_bench_launcher({"framework": "sglang"}), "magpie")
         self.assertEqual(os.environ["MAGPIE_LAUNCH_SCRIPT"], "/magpie/sglang.sh")
+
+    def test_atom_per_backend_env_script_is_discovered(self):
+        os.environ["MAGPIE_ATOM_SCRIPT"] = "/magpie/atom.sh"
+        self.assertEqual(rx.apply_bench_launcher({"framework": "atom"}), "magpie")
+        self.assertEqual(os.environ["MAGPIE_LAUNCH_SCRIPT"], "/magpie/atom.sh")
+
+    def test_atom_recipe_enables_magpie_and_replays_atom_env(self):
+        recipe, script = self._recipe(script="atom_mi355x.sh", framework="atom")
+        launcher = rx.apply_bench_launcher({
+            "launch_recipe": recipe,
+            "framework": "atom",
+            "eval_dir": str(self.tmp / "eval"),
+        })
+        self.assertEqual(launcher, "magpie")
+        self.assertEqual(os.environ["MAGPIE_LAUNCH_SCRIPT"], script)
+        self.assertEqual(os.environ["MAGPIE_LAUNCH_SCRIPT_SOURCE"], "launch_recipe")
+        self.assertIn("MAX_MODEL_LEN", os.environ["RECIPE_ENV_REPLAYED"].split())
+        self.assertIn(
+            b"MAX_MODEL_LEN=6144\0",
+            Path(os.environ["RECIPE_ENV_FILE"]).read_bytes(),
+        )
 
     def test_unsupported_backend_keeps_native_even_with_a_script(self):
         launcher = rx.apply_bench_launcher(
@@ -587,6 +831,31 @@ class TestBenchLauncher(_RunE2ECase):
         rx.apply_bench_launcher({"launch_recipe": recipe, "framework": "vllm"})
 
         self.assertEqual(os.environ["MAGPIE_LAUNCH_SCRIPT"], script)
+
+    def test_an_absolute_script_in_the_recipe_is_taken_as_is(self):
+        """Some orchestrators record benchmark_script as a full path. Searching
+        for it would raise NotImplementedError (rglob rejects an absolute
+        pattern, and the OSError guard does not catch it), losing a script the
+        first candidate already resolved."""
+        checkout = self.tmp / "InferenceX@abc123"
+        (checkout / "benchmarks").mkdir(parents=True)
+        elsewhere = self.tmp / "scripts"
+        elsewhere.mkdir()
+        script = elsewhere / "vllm_mi355x.sh"
+        script.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+        (elsewhere / "benchmark_lib.sh").write_text("# lib\n", encoding="utf-8")
+        recipe = self.tmp / "baseline_config.with_envs.yaml"
+        recipe.write_text(
+            "benchmark:\n"
+            "  framework: vllm\n"
+            f"  benchmark_script: {script}\n"
+            f"  inferencex_path: {checkout}\n",
+            encoding="utf-8",
+        )
+
+        rx.apply_bench_launcher({"launch_recipe": str(recipe), "framework": "vllm"})
+
+        self.assertEqual(os.environ["MAGPIE_LAUNCH_SCRIPT"], str(script))
 
     def test_an_explicit_script_outranks_the_recipe(self):
         recipe, _ = self._recipe()
@@ -1073,7 +1342,8 @@ class TestBenchProtocol(_RunE2ECase):
         self.assertEqual(exported["NUM_WARMUPS"], "128")
         self.assertEqual(exported["SEED"], "0")
         self.assertEqual(exported["RANDOM_RANGE_RATIO"], "1")
-        self.assertEqual(exported["GEAK_REPEAT_MODE"], "isolated_server")
+        self.assertEqual(exported["GEAK_REPEAT_MODE"], "warm_server")
+        self.assertEqual(exported["GEAK_VALIDATION_REPEAT_MODE"], "warm_server")
         self.assertEqual(exported["REPLICA_RETRIES"], "1")
         # A pinned count is the caller telling us what it measured.
         self.assertNotIn("NUM_PROMPTS_ADAPTIVE", exported)
@@ -1091,6 +1361,172 @@ class TestBenchProtocol(_RunE2ECase):
         })
         self.assertEqual(exported["NUM_PROMPTS_ADAPTIVE"], "1")
         self.assertNotIn("NUM_PROMPTS", exported)
+
+    def test_agentx_keeps_the_server_lifecycle_but_drops_sweep_knobs(self):
+        """Server hygiene is workload-independent; prompt-sweep knobs are not.
+
+        Warm-server parity -- one server per leg, a discarded full warmup round,
+        then the timed round(s) on that hot server -- is about the server
+        lifecycle, so AgentX needs it just as much.
+        NUM_WARMUPS/SEED/RANDOM_RANGE_RATIO describe a synthetic prompt sweep
+        that the trace replay never performs.
+        """
+        exported = rx.apply_bench_protocol({
+            "schema_version": 2,
+            "workload": {"conc": 64},
+            "baseline_env_spec": {"config": {}},
+            "workload_spec": {"kind": "agentx_trace_replay"},
+            "bench_protocol": {},
+        })
+        self.assertEqual(exported["GEAK_REPEAT_MODE"], "warm_server")
+        self.assertEqual(exported["GEAK_VALIDATION_REPEAT_MODE"], "warm_server")
+        self.assertEqual(exported["REPLICA_RETRIES"], "1")
+        for synthetic in ("NUM_WARMUPS", "SEED", "RANDOM_RANGE_RATIO"):
+            self.assertNotIn(synthetic, exported)
+            self.assertNotIn(synthetic, os.environ)
+
+
+class TestTargetingShape(_RunE2ECase):
+    """isl/osl stop being the measured load on AgentX, but still aim the search.
+
+    The kernel agents read isl/osl as the analytic serving call model when they
+    synthesize GEMM/attention shapes. A trace replay whose corpus averages ~112k
+    input tokens would be optimized for a 1024-token prefill if the synthetic
+    handoff defaults were taken at face value -- honest numbers, wrong target.
+    """
+
+    def test_synthetic_handoff_keeps_the_handoff_workload_shape(self):
+        isl, osl, prov = rx._targeting_shape(
+            {"workload": {"isl": 2048, "osl": 512}}
+        )
+        self.assertEqual((isl, osl), (2048, 512))
+        self.assertEqual(prov, "handoff_workload")
+
+    def test_synthetic_handoff_falls_back_to_1024_defaults(self):
+        isl, osl, prov = rx._targeting_shape({})
+        self.assertEqual((isl, osl), (1024, 1024))
+        self.assertEqual(prov, "handoff_workload")
+
+    def test_agentx_prefers_the_orchestrator_measured_shape(self):
+        isl, osl, prov = rx._targeting_shape({
+            "workload": {"isl": 1024, "osl": 1024},
+            "workload_spec": {
+                "kind": "agentx_trace_replay",
+                "observed_isl": 112020,
+                "observed_osl": 796,
+            },
+        })
+        self.assertEqual((isl, osl), (112020, 796))
+        self.assertEqual(prov, "agentx_observed")
+
+    def test_agentx_without_an_observed_shape_says_so_loudly(self):
+        """Silence here would aim the search 100x low with no trace of why."""
+        isl, osl, prov = rx._targeting_shape({
+            "workload": {"isl": 1024, "osl": 1024},
+            "workload_spec": {"kind": "agentx_trace_replay"},
+        })
+        self.assertEqual((isl, osl), (1024, 1024))
+        self.assertEqual(prov, "synthetic_fallback_on_agentx")
+
+    def test_a_malformed_observed_shape_is_not_trusted(self):
+        for bad in ("", "abc", 0, -5, None):
+            with self.subTest(observed=bad):
+                _isl, _osl, prov = rx._targeting_shape({
+                    "workload": {"isl": 1024, "osl": 1024},
+                    "workload_spec": {
+                        "kind": "agentx_trace_replay",
+                        "observed_isl": bad,
+                        "observed_osl": 796,
+                    },
+                })
+                self.assertEqual(prov, "synthetic_fallback_on_agentx")
+
+    def test_map_args_carries_the_shape_and_its_provenance(self):
+        ps = rx.map_args({
+            "model_path": "/models/Kimi-K3",
+            "workload": {"isl": 1024, "osl": 1024, "conc": 8},
+            "exp_root": str(self.tmp),
+            "eval_dir": str(self.tmp / "eval"),
+            "workload_spec": {
+                "kind": "agentx_trace_replay",
+                "observed_isl": 112020,
+                "observed_osl": 796,
+            },
+        })
+        self.assertEqual(ps["isl"], 112020)
+        self.assertEqual(ps["osl"], 796)
+        self.assertEqual(ps["workload_shape_provenance"], "agentx_observed")
+        # Concurrency still comes from the workload block (the replay honours it).
+        self.assertEqual(ps["conc"], 8)
+
+    def test_map_args_is_byte_identical_for_synthetic_runs(self):
+        base = {
+            "model_path": "/models/m",
+            "workload": {"isl": 4096, "osl": 256, "conc": 32},
+            "exp_root": str(self.tmp),
+            "eval_dir": str(self.tmp / "eval"),
+        }
+        ps = rx.map_args(dict(base))
+        self.assertEqual(ps["isl"], 4096)
+        self.assertEqual(ps["osl"], 256)
+        self.assertEqual(ps["workload_shape_provenance"], "handoff_workload")
+
+
+class TestAgentXPreflight(_RunE2ECase):
+    """An AgentX dispatch should name a missing prerequisite immediately.
+
+    aiperf is absent from the base serving image (the orchestrator installs it
+    when it enables AgentX), and the client adapter cannot notice until it has
+    already launched and warmed a server -- a long detour to reach a one-line
+    error on this model.
+    """
+
+    AGENTX = {"workload_spec": {"kind": "agentx_trace_replay"}}
+
+    def test_synthetic_handoff_is_never_preflighted(self):
+        self.assertEqual(rx.agentx_preflight({}), [])
+        self.assertEqual(
+            rx.agentx_preflight({"workload_spec": {"kind": "synthetic_isl_osl"}}), []
+        )
+
+    def test_missing_aiperf_is_reported_with_the_name_it_looked_for(self):
+        os.environ["PATH"] = "/nonexistent"
+        os.environ["AIPERF_BIN"] = "aiperf-agentx"
+        problems = rx.agentx_preflight(dict(self.AGENTX))
+        self.assertTrue(any("aiperf-agentx" in p for p in problems))
+
+    def test_missing_inferencex_path_is_reported(self):
+        os.environ.pop("INFERENCEX_PATH", None)
+        problems = rx.agentx_preflight(dict(self.AGENTX))
+        self.assertTrue(any("INFERENCEX_PATH is unset" in p for p in problems))
+
+    def test_inferencex_path_without_the_mapper_is_reported(self):
+        os.environ["INFERENCEX_PATH"] = str(self.tmp)
+        problems = rx.agentx_preflight(dict(self.AGENTX))
+        self.assertTrue(any("map_aiperf.py not found" in p for p in problems))
+
+    def test_a_satisfied_environment_reports_no_problems(self):
+        bench = os.path.join(str(self.tmp), "benchmarks")
+        os.makedirs(bench, exist_ok=True)
+        with open(os.path.join(bench, "map_aiperf.py"), "w") as fh:
+            fh.write("# stub\n")
+        bin_dir = os.path.join(str(self.tmp), "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        aiperf = os.path.join(bin_dir, "aiperf")
+        with open(aiperf, "w") as fh:
+            fh.write("#!/bin/sh\n")
+        os.chmod(aiperf, 0o755)
+        os.environ["PATH"] = bin_dir
+        os.environ["INFERENCEX_PATH"] = str(self.tmp)
+        os.environ.pop("AIPERF_BIN", None)
+        self.assertEqual(rx.agentx_preflight(dict(self.AGENTX)), [])
+
+    def test_preflight_is_advisory_and_does_not_raise(self):
+        """PATH here is not always PATH in the bench subprocess."""
+        os.environ["PATH"] = "/nonexistent"
+        os.environ.pop("INFERENCEX_PATH", None)
+        problems = rx.agentx_preflight(dict(self.AGENTX))
+        self.assertEqual(len(problems), 2)
 
 
 class TestAlignmentFlags(_RunE2ECase):
@@ -1594,15 +2030,30 @@ class TestNumericHelpers(_RunE2ECase):
 
 
 class TestOrchestratorHotBaseline(_RunE2ECase):
-    def test_absent_exp_root_is_zero(self):
-        self.assertEqual(rx.read_orchestrator_hot_baseline({}), 0.0)
-        self.assertEqual(rx.read_orchestrator_hot_baseline({"exp_root": "  "}), 0.0)
+    """Hyperloom's anchor is ``baseline_tput``; whether it is HOT is told by
+    ``baseline_warm_runtime_sec`` (the measure round's wall-clock, written only on
+    the double-run path) and ``baseline_measure_round_dropped``."""
+
+    def test_absent_exp_root_is_unknown(self):
+        self.assertEqual(rx.read_orchestrator_baseline_lifecycle({}), (0.0, "unknown"))
+        self.assertEqual(
+            rx.read_orchestrator_baseline_lifecycle({"exp_root": "  "}),
+            (0.0, "unknown"),
+        )
 
     def test_hot_baseline_found_two_levels_up(self):
         session = self.tmp / "session"
         exp_root = session / "run" / "geak"
         exp_root.mkdir(parents=True)
-        self.write_json(session / "state.json", {"baseline_hot_tput": 612.5})
+        self.write_json(session / "state.json", {
+            "baseline_tput": 612.5,
+            "baseline_warm_runtime_sec": 176.4,
+            "baseline_measure_round_dropped": False,
+        })
+        self.assertEqual(
+            rx.read_orchestrator_baseline_lifecycle({"exp_root": str(exp_root)}),
+            (612.5, "hot_measure_round"),
+        )
         self.assertEqual(
             rx.read_orchestrator_hot_baseline({"exp_root": str(exp_root)}), 612.5
         )
@@ -1610,16 +2061,43 @@ class TestOrchestratorHotBaseline(_RunE2ECase):
     def test_nested_baseline_block_is_read(self):
         exp_root = self.tmp / "geak"
         exp_root.mkdir(parents=True)
-        self.write_json(exp_root / "state.json",
-                        {"baseline": {"baseline_hot_tput": "701.25"}})
+        self.write_json(exp_root / "state.json", {"baseline": {
+            "baseline_tput": "701.25",
+            "baseline_warm_runtime_sec": "88.0",
+        }})
         self.assertEqual(
-            rx.read_orchestrator_hot_baseline({"exp_root": str(exp_root)}), 701.25
+            rx.read_orchestrator_baseline_lifecycle({"exp_root": str(exp_root)}),
+            (701.25, "hot_measure_round"),
+        )
+
+    def test_dropped_measure_round_is_cold_and_not_offered_as_hot(self):
+        """Budget could not fund the hot pass, so the anchor is the cold round —
+        dividing GEAK's hot final by it would return the warm-up as speedup."""
+        exp_root = self.tmp / "geak"
+        exp_root.mkdir(parents=True)
+        self.write_json(exp_root / "state.json", {
+            "baseline_tput": 500.0,
+            "baseline_warm_runtime_sec": 0.0,
+            "baseline_measure_round_dropped": True,
+        })
+        self.assertEqual(
+            rx.read_orchestrator_baseline_lifecycle({"exp_root": str(exp_root)}),
+            (0.0, "cold_single_round"),
+        )
+
+    def test_single_round_baseline_is_unknown_not_hot(self):
+        exp_root = self.tmp / "geak"
+        exp_root.mkdir(parents=True)
+        self.write_json(exp_root / "state.json", {"baseline_tput": 500.0})
+        self.assertEqual(
+            rx.read_orchestrator_baseline_lifecycle({"exp_root": str(exp_root)}),
+            (0.0, "unknown"),
         )
 
     def test_unusable_values_degrade_to_zero(self):
         exp_root = self.tmp / "geak"
         exp_root.mkdir(parents=True)
-        self.write_json(exp_root / "state.json", {"baseline_hot_tput": "not-a-number"})
+        self.write_json(exp_root / "state.json", {"baseline_tput": "not-a-number"})
         self.assertEqual(
             rx.read_orchestrator_hot_baseline({"exp_root": str(exp_root)}), 0.0
         )
@@ -1628,7 +2106,8 @@ class TestOrchestratorHotBaseline(_RunE2ECase):
         exp_root = self.tmp / "geak"
         exp_root.mkdir(parents=True)
         self.assertEqual(
-            rx.read_orchestrator_hot_baseline({"exp_root": str(exp_root)}), 0.0
+            rx.read_orchestrator_baseline_lifecycle({"exp_root": str(exp_root)}),
+            (0.0, "unknown"),
         )
 
 
@@ -1780,9 +2259,9 @@ class TestRecoveryPlumbing(_RunE2ECase):
         self.assertEqual(rx._discover_eval_dir(empty), empty / "e2e_a")
 
     def test_pinned_eval_dir_short_circuits_the_glob(self):
-        pinned = self.tmp / "e2e_pinned"
-        pinned.mkdir()
         other = self.tmp / "root"
+        pinned = other / "e2e_pinned"
+        pinned.mkdir(parents=True)
         (other / "e2e_other").mkdir(parents=True)
         os.environ["GEAK_EVAL_DIR"] = str(pinned)
         self.assertEqual(rx._discover_eval_dir(other), pinned)
@@ -2228,6 +2707,18 @@ class TestMain(_RunE2ECase):
         self.assertIn("Invoke the Workflow tool exactly once", plan["prompt"])
         self.assertFalse(self.result_path.exists())
 
+    def test_probe_less_dry_run_is_host_only(self):
+        os.environ.pop("GEAK_GPU_IDENTITY_JSON", None)
+        self.patch_rx(
+            "_expected_gpu_identity",
+            lambda _handoff: self.fail("dry-run must not probe GPU identity"),
+        )
+        rc, stdout = self._run(self._handoff(), "--dry-run")
+        self.assertEqual(rc, 0)
+        mapped = json.loads(stdout)["mapped_args"]
+        self.assertEqual(mapped["gpu_identity_status"], "unavailable_dry_run")
+        self.assertNotIn("expected_gfx", mapped)
+
     def test_protected_pgids_are_published_before_any_launch(self):
         """Pins the CALL SITE, not just the helper: the veto must be in the
         environment before main() can reach a bench, so it is set even on the
@@ -2321,7 +2812,7 @@ class TestMain(_RunE2ECase):
         report.write_text("# GEAK final report\n", encoding="utf-8")
         seen = {}
 
-        def ok_invoke(prompt, timeout_s, eval_dir):
+        def ok_invoke(prompt, timeout_s, eval_dir, ps_args=None):
             seen.update(prompt=prompt, timeout_s=timeout_s, eval_dir=eval_dir)
             return {"eval_dir": str(self.eval_dir),
                     "baseline_throughput_tok_s": 461.314,
@@ -2399,7 +2890,7 @@ class TestMain(_RunE2ECase):
     def test_sigterm_handler_self_stops_as_a_timeout(self):
         """The outer runner's graceful stop must be converted into a TimeoutError
         so the finally-block flushes the interface files instead of being killed."""
-        def invoke_then_term(prompt, timeout_s, eval_dir):
+        def invoke_then_term(prompt, timeout_s, eval_dir, ps_args=None):
             handler = signal.getsignal(signal.SIGTERM)
             handler(signal.SIGTERM, None)
             raise AssertionError("the SIGTERM handler must raise")
@@ -2418,7 +2909,7 @@ class TestMain(_RunE2ECase):
     def test_recovery_failure_after_a_crashed_workflow_is_contained(self):
         """Both the post-crash recovery and the one inside _emit raise; the run
         must degrade to a parseable error file, never propagate."""
-        def boom_invoke(prompt, timeout_s, eval_dir):
+        def boom_invoke(prompt, timeout_s, eval_dir, ps_args=None):
             raise RuntimeError("agent died")
 
         def boom_recover(exp_root):
@@ -2442,7 +2933,7 @@ class TestMain(_RunE2ECase):
              "output_parity": "pass"},
         )
 
-        def boom(prompt, timeout_s, eval_dir):
+        def boom(prompt, timeout_s, eval_dir, ps_args=None):
             raise rx.WorkflowParseError("agent printed prose")
 
         self.patch_rx("invoke_workflow", boom)

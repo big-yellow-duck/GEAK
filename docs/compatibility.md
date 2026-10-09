@@ -14,8 +14,9 @@ Use the following matrix to view the compatibility and system requirements:
 
 | AMD GPU | GEAK scope | ROCm version | Python | Ubuntu |
 |---|---|---|---|---|
+| Radeon 8060S / Strix Halo (`gfx1151`) | Upstream RDNA3.5 kernel/serving guidance | 7.2x, 10 | 3.12 | 22.04, 24.04 |
 | MI300X, MI325X, MI355X (`gfx942`/`gfx950`) | `kernel_workflow` and `e2e_workflow` | 6.4x, 7.0x, 7.1x, 7.2x, 10.0.0 | 3.8, 3.12 | 22.04, 24.04 |
-| Radeon AI PRO R9700 (`gfx1201`) | `kernel_workflow`; E2E depends on the serving stack and model fit | 7.14x tested locally | 3.14 | 24.04 |
+| Radeon AI PRO R9700 (`gfx1201`) | `kernel_workflow`; validated E2E policy uses vLLM only | 7.14x tested locally | 3.14 | 24.04 |
 
 ```{note}
 - The on-box card is auto-detected (`rocminfo` / `rocm_agent_enumerator`); `PYTORCH_ROCM_ARCH` is pinned
@@ -41,6 +42,7 @@ to the local `gfx` at build time.
 
 | Mode | Notes |
 |---|---|
+| Upstream provider runtime | `node interface/runtime/engine/run_workflow.mjs ... --agent codex`; profiles/providers documented in `interface/runtime/SETUP.md`. |
 | Codex compatibility runtime | `node interface/codex_workflow_runner.mjs --script ... --args-file ...` |
 | Claude natural language → `Workflow` | Describe the task to Claude Code; it maps the prompt onto `Workflow({ scriptPath, args })`. |
 | Direct `Workflow` call (e2e) | `scriptPath: "<repo>/e2e_workflow/e2e_workflow.js"` |
@@ -63,8 +65,9 @@ The serving stack is not baked in; `args.backend` selects `scripts/adapters/<bac
 
 | Backend | Default port |
 |---|---|
-| sglang | 30000 |
-| vllm | 8000 |
+| sglang | 30000 (Instinct; unavailable for R9700 E2E) |
+| vllm | 8000 (R9700 E2E requires this backend) |
+| atom | 8000 (Instinct) |
 
 | Bench client | Notes |
 |---|---|

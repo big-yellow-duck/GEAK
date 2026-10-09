@@ -88,13 +88,27 @@ jobs:
         run: |
           python -m pytest -q --cov --cov-report=term --cov-fail-under=0 \
             interface/test_run_e2e_recovery.py \
+            interface/test_e2e_checkpoint.py \
             interface/test_run_e2e_tuning_result.py \
             interface/test_run_e2e_alignment.py \
             interface/test_run_e2e_dispatch.py \
+            interface/test_run_e2e_runtime_dispatch.py \
+            interface/test_run_e2e_workload_comparability.py \
             interface/test_run_e2e_recipe_env.py \
             interface/test_run_e2e_margin.py \
             interface/test_run_e2e_measurement_basis.py \
             interface/test_run_e2e_kb_write_tuned.py \
+            e2e_workflow/scripts/tests/test_atom_adapter_lifecycle.py \
+            interface/test_run_e2e_trace_mirror.py \
+            interface/test_geak_outcome_report.py \
+            interface/tests/test_geak_call_tree_html.py \
+            interface/tests/test_geak_report.py \
+            interface/tests/test_claude_trace_mirror.py \
+            interface/tests/test_no_hyperloom_dependency.py \
+            interface/tests/test_geak_trace_collector.py \
+            interface/tests/test_geak_trace_events.py \
+            interface/tests/test_geak_trace_report.py \
+            interface/tests/test_tracker_wiring.py \
             e2e_workflow/scripts/tests/test_magpie_launcher_extra_args.py \
             e2e_workflow/scripts/tests/test_bench_trust_remote_code.py \
             e2e_workflow/scripts/tests/test_workload_alignment.py \
@@ -103,6 +117,7 @@ jobs:
             e2e_workflow/scripts/tests/test_gsm8k_eval.py \
             e2e_workflow/scripts/tests/test_parse_profile.py \
             e2e_workflow/scripts/tests/test_capture_shapes.py \
+            e2e_workflow/scripts/tests/test_llm_ledger.py \
             e2e_workflow/scripts/tests/test_overlay_setup.py \
             e2e_workflow/scripts/tests/test_seam_trace.py \
             e2e_workflow/scripts/tests/test_kernel_selection.py \
@@ -120,14 +135,19 @@ jobs:
             e2e_workflow/scripts/tests/test_kb_retract.py \
             kernel_workflow/scripts/tests/test_experience_store.py \
             kernel_workflow/scripts/tests/test_eval_storage_reclaim.py \
+            kernel_workflow/scripts/tests/test_workspace_sources.py \
             kb/tests/test_store_local.py \
             kb/tests/test_attest.py \
             kb/tests/test_identity.py \
             kernel_workflow/scripts/tests/test_kb_loop_offline.py \
             interface/test_effective_config.py \
             e2e_workflow/scripts/tests/test_bench_replica_lifecycle.py \
+            e2e_workflow/scripts/tests/test_bench_summarize.py \
+            e2e_workflow/scripts/tests/test_inferencex_client_warmup_parity.py \
+            e2e_workflow/scripts/tests/test_agentx_client_canonicality.py \
             e2e_workflow/scripts/tests/test_roofline_skill.py \
             e2e_workflow/scripts/tests/test_vllm_adapter_profiler_config.py \
+            scripts/tests/test_gpu_identity.py \
             geak/test_bootstrap.py
 
       - name: expert skill static validation
@@ -150,6 +170,10 @@ jobs:
           python3 kernel_workflow/scripts/test_kb.py
           python3 kernel_workflow/scripts/test_lane_refs.py
           python3 kernel_workflow/scripts/test_kb_switch.py
+          bash kernel_workflow/scripts/test_profile_policy.sh
+          bash kernel_workflow/scripts/test_profile_fallback.sh
+          bash kernel_workflow/scripts/test_detect_gpu_arch.sh
+          bash kernel_workflow/scripts/test_gpu_lock_arch.sh
           python3 e2e_workflow/scripts/tests/test_e2e_lane_defaults.py
           # The kernel KB must lint clean and its generated index must match the cards. `lint --cards`
           # now exits non-zero on failure, so this is a gate rather than a printout.
@@ -265,6 +289,8 @@ jobs:
       # Pure node (fs/path only) — no npm install needed.
       - name: expert_skills OFF-identical regression
         run: node e2e_workflow/scripts/test_expert_skills_off_identical.js
+      - name: candidate floor and invalid measurement recovery
+        run: node kernel_workflow/scripts/test_candidate_floor.js
       # The JS gate and the Python selection verdict canonicalize the same kernel symbols. Only this
       # job can run the JS half, so without it the two implementations are pinned on the Python side
       # alone and are free to drift — which lets a kernel pass one side and be refused by the other.
@@ -280,6 +306,18 @@ jobs:
       # exercise the JS half, and the clock is pure time arithmetic — no GPU, no model.
       - name: wall-clock budget / final reserve regression
         run: node e2e_workflow/scripts/test_time_budget_reserve.js
+      - name: fork RDNA4 backend and FlyDSL regression
+        run: node kernel_workflow/scripts/test_rdna4_support.js
+      - name: upstream swappable runtime self-test
+        run: node interface/runtime/engine/selftest.mjs
+      - name: gfx1201 fail-closed knowledge regression
+        run: node kernel_workflow/scripts/test_rdna4_policy.js
+      - name: R9700 E2E identity and knowledge policy
+        run: node e2e_workflow/scripts/test_rdna4_e2e_policy.js
+      - name: caller-pinned eval_dir regression
+        run: node e2e_workflow/scripts/test_pinned_eval_dir.js
+      - name: kernel_workflow mode dispatch / R9700 bakeoff isolation
+        run: node kernel_workflow/scripts/test_mode_dispatch.js
 
   tuning-skillset-integrity:
     name: Vendored tuning skillset matches its manifest

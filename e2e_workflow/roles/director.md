@@ -37,12 +37,16 @@ Inputs: `LAUNCH_SCRIPT` (path to a bench/launch script; may be empty), `MODEL_PA
 `INIT_ENV` (seed `KEY=VAL` env from the caller's best config; may be empty),
 `INIT_BASE_OVERLAY` (the caller's current-best Python overlay/source stack),
 `MEASUREMENT_MODE`, `MEASUREMENT_PURPOSE`, `REPLICAS`, and
-`EFFECTIVE_CONFIG_DIGEST`.
+`EFFECTIVE_CONFIG_DIGEST`, plus the caller-established structured identity
+`EXPECTED_GFX`, `EXPECTED_TARGET`, `EXPECTED_DEVICE_NAME`, and
+`EXPECTED_PHYSICAL_CU_COUNT`.
 
 Steps:
 1. Collision-proof run id: `TS=$(date +%Y%m%d_%H%M%S)_$$_${RANDOM}`.
-2. Decide `EVAL_DIR`: if `EVAL_DIR_OVERRIDE` set use it; else
-   `EXP_ROOT/e2e_${MODEL_NAME}_${TS}`. If it exists & non-empty, append `_${RANDOM}` until fresh.
+2. Decide `EVAL_DIR`: if `EVAL_DIR_OVERRIDE` is set, `EVAL_DIR` is exactly that path, even when it
+   already exists and holds files (the caller writes there first and reads results only from there).
+   Otherwise use `EXP_ROOT/e2e_${MODEL_NAME}_${TS}`, and if that generated path exists & is non-empty,
+   append `_${RANDOM}` until fresh.
 3. Build the layout and copy the launch script in (never edit the original):
    ```bash
    mkdir -p "$EVAL_DIR"/{baseline,profile,overlay,kernels,config,logs}
@@ -51,13 +55,20 @@ Steps:
    cp "$SKILL_DIR/scripts/bench_e2e.sh" "$EVAL_DIR/bench_e2e.sh"
    cp "$SKILL_DIR/scripts/bench_replica.sh" "$EVAL_DIR/bench_replica.sh"
    cp "$SKILL_DIR/scripts/server_teardown.sh" "$EVAL_DIR/server_teardown.sh"   # the server-kill contract; bench_e2e.sh REFUSES to run without it
+   cp "$SKILL_DIR/scripts/bench_summarize.py" "$EVAL_DIR/bench_summarize.py"   # writes bench_summary.json; also refused without it
    cp -r "$SKILL_DIR/scripts/adapters" "$EVAL_DIR/adapters"   # bench_e2e.sh sources adapters/<backend>.sh next to itself
    cp "$SKILL_DIR/scripts/parse_profile.py" "$EVAL_DIR/parse_profile.py"
    ```
    - If `LAUNCH_SCRIPT` is empty, the baseline is the stack's default config + `MODEL_PATH` +
      `WORKLOAD` (bench_e2e.sh needs no model default — `MODEL` is passed). Record the resolved server
      flags in `EVAL_DIR/config/baseline_flags.json`.
-4. **Preflight + pin the environment** — follow `SKILL_DIR/knowledge/preflight.md` (judgment guide,
+4. **Preflight + pin the environment** — first run
+   `python3 "$SKILL_DIR/../scripts/gpu_identity.py"` and use its JSON as the
+   only product/ISA/CU source. `target=r9700` is emitted only for the exact
+   marketing name `AMD Radeon AI PRO R9700`; a different gfx1201 product remains
+   `unknown`. Hard-stop if it disagrees with `EXPECTED_GFX`,
+   `EXPECTED_TARGET=r9700`, or a positive `EXPECTED_PHYSICAL_CU_COUNT`.
+   Then follow `SKILL_DIR/knowledge/preflight.md` (judgment guide,
    not a script). Confirm the chosen `BACKEND` stack imports/launches, `MODEL` resolves, the GPU(s)
    are visible; detect gfx + GPU architecture class + CU count + wave size, trace sources, available
    op backends, and the model's **arch class** from its `config.json`. Record both physical CU count and,
@@ -80,9 +91,14 @@ Steps:
    python3 -c "import sglang,os;print('sglang',sglang.__version__,os.path.dirname(sglang.__file__))" >> "$EVAL_DIR/env_info.txt" 2>&1
    (amd-smi list 2>/dev/null || rocminfo 2>/dev/null | grep -m1 gfx) >> "$EVAL_DIR/env_info.txt" || true
    ```
-5. **Record the TRUE baseline throughput** with a fresh isolated-server replica (this is the number
-   every later gain is measured against). InferenceX performs its internal kernel/graph warmups, but
-   there is no outer full-round replay before the measured request set. **Serving is TP=`SERVING_TP`
+5. **Record the TRUE baseline throughput** in the lifecycle `MEASUREMENT_MODE` selects — pass it
+   through verbatim, never substitute your own. This is the number every later gain is measured
+   against, so it MUST be taken exactly the way the sweep, integrate and validate legs will be.
+   The default `warm_server` boots ONE server, runs a full untimed round that populates the prefix
+   cache and is discarded, then runs `REPLICAS` timed round(s) on that hot server — Hyperloom's own
+   `warmup_round`/`measure_round`. Under `isolated_server` each replica is a fresh server and
+   InferenceX's internal kernel/graph warmups run but no outer full-round replay does.
+   **Serving is TP=`SERVING_TP`
    on the GPU set `SERVING_GPU`** (both passed in your inputs / the SERVING CONFIG INVARIANT block of
    your prompt). `GPU_IDS` is the optimization-parallelism
    pool, NOT the serving tensor-parallel size; the serving config is `TP=SERVING_TP GPU=SERVING_GPU`.
@@ -108,11 +124,16 @@ Steps:
    flags/env actually took effect (e.g. the chosen attention backend / env var appears in the server
    banner). If a seed flag did not engage, record it loudly in `notes` — a baseline measured on a
    silently-ignored config corrupts every later gain.
-6. If baseline spread > ~5%, re-run — a noisy baseline poisons every later comparison. Set
-   `noise_band_pct = 0.5` (the default accept threshold): the Integrator gates with isolated-server
-   reference/candidate legs, non-overlap, and engagement proof.
-   Only widen it (e.g. to 1–2%) if the baseline spread is genuinely large on this box and can't be
-   tightened.
+6. Spread is only a noise signal when there is more than one timed sample. At the default
+   `REPLICAS=1` the summary reports `spread=0.0%` because there is a single timed round — that is an
+   absence of evidence, NOT a quiet box, so do not read it as one and do not gate on it. Judge the
+   baseline instead on engagement proof (step 5) plus a sanity check that the number is in the range
+   this model/box has produced before.
+   Only when the run asked for several samples (`REPLICAS>1`, or `isolated_server`) does spread mean
+   anything: > ~5% then, re-run — a noisy baseline poisons every later comparison.
+   Set `noise_band_pct = 0.5` (the default accept threshold): the Integrator gates with same-lifecycle
+   reference/candidate legs, non-overlap, and engagement proof. Only widen it (e.g. to 1–2%) if a
+   multi-sample measurement showed the spread is genuinely large on this box and can't be tightened.
 
 Return JSON:
 ```json
@@ -133,7 +154,10 @@ Return JSON:
   "tp": 1,
   "workload": {"isl": 1024, "osl": 1024, "conc": 64},
   "bench_script": "<EVAL_DIR>/bench_e2e.sh",
-  "gfx": "<gfx target, e.g. gfx950 — from step 4, or \"\" if you could not detect it>",
+  "gfx": "<required gfx target from step 4, e.g. gfx950>",
+  "device_target": "r9700|unknown",
+  "device_name": "<exact Marketing Name from the selected rocminfo agent>",
+  "physical_cu_count": 64,
   "precision": "<serving precision, e.g. mxfp8 | fp8 | bf16 — or \"\" if not established>",
   "framework_version": "<BACKEND version, e.g. 0.26.0 — or \"\" if not established>",
   "rocm_version": "<ROCm <major>.<minor>, e.g. 7.2 — or \"\" if not established>",
@@ -141,11 +165,12 @@ Return JSON:
 }
 ```
 
-The last four are the dimensions the deployment knowledge base addresses a record by, and you have
+The final deployment dimensions are the dimensions the knowledge base addresses a record by, and you have
 already established every one of them in step 4 to launch the server at all. **Never guess one.**
-An empty string files this run under a deliberately coarse `unknown` page, which is honest and
-recoverable; a plausible-looking wrong value files it under an authoritative page, and the store has
-no delete — a bad record there can only be outranked, never removed. If a value is genuinely
+`gfx`, `device_target`, and `physical_cu_count` are required by the Setup schema; stop if the structured
+probe cannot establish them. Optional descriptive fields may remain empty. A plausible-looking wrong
+value files the run under an authoritative page, and the store has no delete — a bad record there can
+only be outranked, never removed. If an optional value is genuinely
 unknown, `""` is the correct answer.
 
 ---
@@ -158,17 +183,31 @@ overlay `FINAL_OVERLAY` (dir) + `FINAL_FLAGS` (json), the Architect/Integrator's
 `APPLY_TO_ORIGINAL`, and the already-written report files `ARCHITECT_REPORT`
 (`architect_report.md`) + `FINAL_REPORT` (`final_report.md`) to reconcile in step 7.
 
-**Do NOT trust the claimed throughput — reproduce it with fresh isolated-server replicas.**
+**Do NOT trust the claimed throughput — re-measure it yourself, in a fresh server lifecycle.**
 
 The final overlay may include PROVISIONAL "stack" kernels (each individually sub-0.5% but carried to
 compound). THIS phase is the authoritative gate for the combined stack: measure the FULL bundle vs the
-TRUE baseline with independent-server replicas and decide if the COMBINED result clears the band.
+TRUE baseline and decide if the COMBINED result clears the band.
 
-1. Measure baseline AND final with **independent-server replicas**: a reference block
-   (the TRUE baseline current-best stack) and a final block (full overlay + flags), each with
-   `REPLICAS` fresh servers (validation default 3). Every replica retains the client's internal
-   kernel/graph warmups but skips the outer full-round replay, then records one cache-cold measured
-   request set; never replace a failed replica with another repeat on the same server.
+`MEASUREMENT_MODE` decides the lifecycle, and you MUST pass it through verbatim — do not substitute
+your own. It is one of:
+
+- **`warm_server`** (the DEFAULT, and what every other leg in this run used): ONE server per leg.
+  One full untimed round warms the prefix cache and is discarded, then `REPLICAS` timed rounds run on
+  that same hot server and their median is reported. `REPLICAS` defaults to 1, which makes it exactly
+  two client passes per leg with the second one reported — precisely how Hyperloom measures its own
+  baseline and variants (`warmup_round` discarded → `measure_round` on the re-attached hot server), so
+  your number and the orchestrator's rebench are the same measurement. It costs 2 server boots total.
+  The spread across those rounds bounds CLIENT noise, not boot-to-boot noise — see step 1's caveat,
+  and at `REPLICAS=1` there is no spread at all.
+- **`isolated_server`** (opt-in): `REPLICAS` FRESH servers per leg. Every replica retains the client's
+  internal kernel/graph warmups but skips the outer full-round replay, then records one cache-cold
+  measured request set; never replace a failed replica with another repeat on the same server. The
+  spread bounds boot-to-boot variance. Most faithful, but `REPLICAS` cold boots per leg.
+
+1. Measure baseline AND final: a reference block (the TRUE baseline current-best stack) and a final
+   block (full overlay + flags), each with `REPLICAS` samples in the lifecycle `MEASUREMENT_MODE`
+   selects.
    The TRUE-baseline block MUST reproduce the seed config the baseline was measured on (the caller's
    best config = the recorded `baseline` flags/env, i.e. the same `INIT_FLAGS`/`INIT_ENV`) — NOT
    `FINAL_FLAGS` minus GEAK's kernel wins. Use the same `TP=SERVING_TP GPU=SERVING_GPU` as setup.
@@ -177,21 +216,31 @@ TRUE baseline with independent-server replicas and decide if the COMBINED result
    # Serving config MUST be the run-wide invariant: TP=SERVING_TP GPU=SERVING_GPU (from your inputs).
    BACKEND="<backend>" OUT_DIR="$EVAL_DIR/validation/base" GPU="<SERVING_GPU>" TP="<SERVING_TP>" MODEL="$MODEL_PATH" \
    OVERLAY_PYTHONPATH="$BASELINE_OVERLAY" EXTRA_SERVER_ARGS="<baseline seed flags>" EXTRA_ENV="<baseline seed env>" \
-   GEAK_REPEAT_MODE="$MEASUREMENT_MODE" MEASUREMENT_PURPOSE=validation REPLICAS="${REPLICAS:-3}" \
+   GEAK_REPEAT_MODE="$MEASUREMENT_MODE" MEASUREMENT_PURPOSE=validation REPLICAS="${REPLICAS:-1}" \
    PROFILE=0 ISL=<isl> OSL=<osl> CONC=<conc> \
      bash "$EVAL_DIR/bench_e2e.sh" 2>&1 | tee -a "$EVAL_DIR/logs/validation_bench.log"
    # final block (full overlay + flags + env), SAME TP=SERVING_TP GPU=SERVING_GPU
    BACKEND="<backend>" OUT_DIR="$EVAL_DIR/validation/final" GPU="<SERVING_GPU>" TP="<SERVING_TP>" MODEL="$MODEL_PATH" \
    OVERLAY_PYTHONPATH="$FINAL_OVERLAY" EXTRA_SERVER_ARGS="<final flags>" EXTRA_ENV="<final env>" \
-   GEAK_REPEAT_MODE="$MEASUREMENT_MODE" MEASUREMENT_PURPOSE=validation REPLICAS="${REPLICAS:-3}" \
+   GEAK_REPEAT_MODE="$MEASUREMENT_MODE" MEASUREMENT_PURPOSE=validation REPLICAS="${REPLICAS:-1}" \
    PROFILE=0 ISL=<isl> OSL=<osl> CONC=<conc> \
      bash "$EVAL_DIR/bench_e2e.sh" 2>&1 | tee -a "$EVAL_DIR/logs/validation_bench.log"
    ```
-   Read `status`, `successful_replicas`, and `usable_for_acceptance` from both summaries. A degraded
-   median remains observable, but acceptance requires `usable_for_acceptance=true` for both legs
-   (all requested replicas completed); an `incomplete` leg must never be silently promoted.
+   Read `status`, `successful_replicas`, and `usable_for_acceptance` from both summaries — both
+   lifecycles write the same fields. A degraded median remains observable, but acceptance requires
+   `usable_for_acceptance=true` for both legs (all requested samples completed); an `incomplete` leg
+   must never be silently promoted.
    Use `validation/base` as the drift-corrected baseline (the provided `BASELINE_THROUGHPUT` may be
-   hours stale). Combined `delta% = (final_med - base_med)/base_med*100`; check `final_min > base_max`.
+   hours stale). Combined `delta% = (final_med - base_med)/base_med*100`; check `final_min > base_max`
+   over `all_throughput`.
+   **Caveat on the non-overlap test under `warm_server`** (`dispersion_basis: within_server_rounds`):
+   the samples share one boot, so their spread is narrower than the true run-to-run spread and
+   `final_min > base_max` clears more easily than it would across independent servers. When
+   `delta%` is within 2x `NOISE_BAND_PCT` and the only thing carrying the win is non-overlap, say so
+   in `notes` and prefer `validated_no_win` over `validated_win`. With `REPLICAS=1` there is one
+   sample per leg, `min == max`, and the non-overlap test carries no information at all: a win then
+   needs `delta% > NOISE_BAND_PCT` on the medians alone, and `notes` MUST record that the dispersion
+   test was not available.
 2. **Output parity** (a faster wrong server is a regression): run a short greedy/temp=0 fixed-seed
    request set against both baseline and final; diff the decoded outputs. Record pass/fail. If
    parity fails (and the change was not an intentional, accuracy-approved quantization), status =

@@ -59,7 +59,11 @@ ok(!allowed('aiter', true) && !allowed('asm', true),
 ok(!allowed('ck', false) && allowed('ck', true), 'CK is explicit opt-in only');
 ok(/const tunedSpeedup = IS_RDNA4 \? 0/.test(workflow), 'RDNA4 env-tune winner is hard-disabled');
 ok(/export FLYDSL_GPU_ARCH/.test(gpuLock), 'GPU wrapper pins direct FlyDSL architecture');
-ok(/gfx120\*\).*rocprofv3 rocprof/.test(profiler), 'RDNA4 profiler order starts with rocprofv3');
+for (const gfx of ['gfx1200', 'gfx1201']) {
+  const order = cp.execFileSync('bash', ['-c', 'source "$1"; profiler_priority_for_arch "$2"',
+    'test', path.join(root, 'scripts/profile_policy.sh'), gfx], { encoding: 'utf8' });
+  ok(order.startsWith('rocprofv3 rocprof'), `${gfx} profiler order starts with rocprofv3`);
+}
 
 for (const fact of ['wave32', 'WGP', 'WMMA', 'GDDR6', 'AITER: no-go', 'FlyDSL main']) {
   ok(rdnaDoc.includes(fact), `RDNA4 hardware card covers ${fact}`);
